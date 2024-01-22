@@ -97,9 +97,7 @@ public class MainActivity extends AppCompatActivity {
         btService = new BluetoothService(this, mHandler);
         filePath = getIntent().getStringExtra("FILE");
         if (filePath != null) {
-
             Log.d(TAG, "onCreate: "+filePath);
-
             ArrayList<Bitmap> bitmaps = PrintUtils.pdfToBitmap(new File(filePath));
             ImageView imageView = findViewById(R.id.imageView);
             imageView.setImageBitmap(bitmaps.get(0));

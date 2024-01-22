@@ -156,7 +156,9 @@ public class ThermalPrintService extends PrintService {
                 pg.drawImage(0, 0, bitmaps.get(i));
                 sendData = pg.printDraw();
                 btService.write(sendData);
+
             }
+            printJob.cancel();
 
 //                        byte[] sendData = null;
 //                    PrintBitmap pg = new PrintBitmap();
@@ -251,13 +253,18 @@ class ThermalPrinterDiscoverySession extends PrinterDiscoverySession {
     ThermalPrinterDiscoverySession(PrinterInfo printerInfo) {
 
 
-        PrintAttributes.MediaSize mediaSize = new PrintAttributes.MediaSize("custom", "albadr-size",700, 1000);
+        PrintAttributes.MediaSize mediaSize = new PrintAttributes.MediaSize("custom", "custom", 5800, 10000);  // Assuming 58mm width
+         PrintAttributes.MediaSize mediaSize2 = new PrintAttributes.MediaSize("custom", "custom2", 5800, 5000);
+
+
         PrinterCapabilitiesInfo capabilities =
                 new PrinterCapabilitiesInfo.Builder(printerInfo.getId())
-                      .addMediaSize( mediaSize, true)
-                      .addResolution(new PrintAttributes.Resolution("1234","Default",4000,2000), true)
-                       .setColorModes(PrintAttributes.COLOR_MODE_MONOCHROME, PrintAttributes.COLOR_MODE_MONOCHROME)
-                .build();
+                      .addMediaSize(  mediaSize, true)
+                      .addMediaSize(  mediaSize2, false)
+                      .addMediaSize(   PrintAttributes.MediaSize.NA_FOOLSCAP, false)
+                       .addResolution(new PrintAttributes.Resolution("1234","Default",203,203), true)
+                       .setColorModes(PrintAttributes.COLOR_MODE_MONOCHROME, PrintAttributes.COLOR_MODE_MONOCHROME).build();
+
         this.printerInfo = new PrinterInfo.Builder(printerInfo)
                 .setCapabilities(capabilities)
                 .build();
