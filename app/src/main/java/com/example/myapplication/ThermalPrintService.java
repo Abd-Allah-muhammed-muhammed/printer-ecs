@@ -253,16 +253,17 @@ class ThermalPrinterDiscoverySession extends PrinterDiscoverySession {
     ThermalPrinterDiscoverySession(PrinterInfo printerInfo) {
 
 
-        PrintAttributes.MediaSize mediaSize = new PrintAttributes.MediaSize("custom", "custom", 5800, 10000);  // Assuming 58mm width
-         PrintAttributes.MediaSize mediaSize2 = new PrintAttributes.MediaSize("custom", "custom2", 5800, 5000);
-
+        PrintAttributes.MediaSize mediaSize58 = new PrintAttributes.MediaSize("58M", "58M", 2283, 6000);
+         PrintAttributes.MediaSize mediaSize580 = new PrintAttributes.MediaSize("580M", "580M", 580, 1000);
+        PrintAttributes.MediaSize mediaSize5800 = new PrintAttributes.MediaSize("6830M", "6830M", 6830, 8270);
 
         PrinterCapabilitiesInfo capabilities =
                 new PrinterCapabilitiesInfo.Builder(printerInfo.getId())
-                      .addMediaSize(  mediaSize, true)
-                      .addMediaSize(  mediaSize2, false)
-                      .addMediaSize(   PrintAttributes.MediaSize.NA_FOOLSCAP, false)
-                       .addResolution(new PrintAttributes.Resolution("1234","Default",203,203), true)
+                      .addMediaSize(  mediaSize58, true)
+                      .addMediaSize(  mediaSize580, false)
+                      .addMediaSize(  mediaSize5800, false)
+                      .addMediaSize(PrintAttributes.MediaSize.ISO_A5, false)
+                        .addResolution(new PrintAttributes.Resolution("1234","Default",200,200), true)
                        .setColorModes(PrintAttributes.COLOR_MODE_MONOCHROME, PrintAttributes.COLOR_MODE_MONOCHROME).build();
 
         this.printerInfo = new PrinterInfo.Builder(printerInfo)
