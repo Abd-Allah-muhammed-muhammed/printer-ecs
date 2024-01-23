@@ -1,15 +1,11 @@
 package com.example.myapplication;
 
+import com.squareup.picasso.Picasso;
 
-import static com.example.myapplication.util.PrinterCommands.SELECT_BIT_IMAGE_MODE;
-
-import android.Manifest;
 import android.bluetooth.BluetoothDevice;
-import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.os.Build;
+import android.graphics.Canvas;
+import android.graphics.Typeface;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
@@ -23,20 +19,13 @@ import android.printservice.PrintService;
 import android.printservice.PrinterDiscoverySession;
 import android.util.Log;
 import android.widget.ArrayAdapter;
-import android.widget.ImageView;
-import android.widget.Toast;
 
 import androidx.annotation.Nullable;
-import androidx.core.app.ActivityCompat;
 
 import com.example.myapplication.util.PrintBitmap;
-import com.example.myapplication.util.PrintPic;
-import com.example.myapplication.util.PrintQueue;
 import com.example.myapplication.util.PrintUtils;
-import com.example.myapplication.util.PrinterCommands;
 import com.zj.btsdk.BluetoothService;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -52,6 +41,7 @@ public class ThermalPrintService extends PrintService {
 
     private PrinterInfo mThermalPrinter;
     private Handler mHandler;
+    private PrintAttributes.MediaSize paperSize;
 
     @Override
     public void onCreate() {
@@ -83,9 +73,12 @@ public class ThermalPrintService extends PrintService {
     }
     }
 
+
+
     @Override
     protected void onPrintJobQueued(PrintJob printJob) {
-        Log.d(LOG_TAG, "onPrintJobQueued: ");
+
+
         Message message = mHandler.obtainMessage(PrintHandler.MSG_HANDLE_PRINT_JOB, printJob);
         mHandler.sendMessageDelayed(message, 0);
     }
@@ -96,7 +89,9 @@ public class ThermalPrintService extends PrintService {
              printJob.start();
         }
 
+
         final PrintJobInfo info = printJob.getInfo();
+
         final File file = new File(getFilesDir(), info.getLabel() + ".pdf");
 
 
@@ -151,57 +146,22 @@ public class ThermalPrintService extends PrintService {
 
                 byte[] sendData = null;
                 PrintBitmap pg = new PrintBitmap();
-                pg.initCanvas(384);
+                pg.initCanvas(380);
+
                 pg.initPaint();
-                pg.drawImage(0, 0, bitmaps.get(i));
-                sendData = pg.printDraw();
-                btService.write(sendData);
+                pg.paint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.NORMAL));
+
+                 Bitmap originalBitmap = bitmaps.get(i);
+
+                 pg.drawImage(0, 0, originalBitmap);
+
+                 sendData = pg.printDraw();
+
+                 btService.write(sendData);
 
             }
             printJob.cancel();
 
-//                        byte[] sendData = null;
-//                    PrintBitmap pg = new PrintBitmap();
-//                    pg.initCanvas(384);
-//                    pg.initPaint();
-//                    pg.drawImage(0, 0, bitmaps.get(0));
-//                    sendData = pg.printDraw();
-//                    btService.write(sendData);
-
-//           byte[] bytes = PrintUtils.getBytes(bitmaps.get(0));
-//           btService.write(bytes);
-//
-//            String filePath = file.getPath();
-//            Bitmap bitmap = BitmapFactory.decodeFile(filePath);
-//
-//            byte[] bytes = PrintUtils.getBytes(bitmap);
-//            btService.write(bytes);
-
-
-//
-//            byte[] sendData = null;
-//                    PrintBitmap pg = new PrintBitmap();
-//                    pg.initCanvas(384);
-//                    pg.initPaint();
-//                    pg.drawImage(0, 0, bitmap);
-//                    sendData = pg.printDraw();
-//                    btService.write(sendData);
-//                    Log.d("TAG", "handleMessage: printing...2");
-//
-
-//            PrintUtils pu = new PrintUtils(file.getPath(), new PrintUtils.OnPageLoadListener() {
-//                @Override
-//                public void onPageLoad(Bitmap bitmap) {
-//                    byte[] sendData = null;
-//                    PrintBitmap pg = new PrintBitmap();
-//                    pg.initCanvas(384);
-//                    pg.initPaint();
-//                    pg.drawImage(0, 0, bitmap);
-//                    sendData = pg.printDraw();
-//                    btService.write(sendData);
-//                    Log.d("TAG", "handleMessage: printing...2");
-//                }
-//            });
 
         } catch (IOException ioe) {
             Log.d(LOG_TAG, "handleHandleQueuedPrintJob: "+ioe.getMessage());
@@ -250,26 +210,29 @@ class ThermalPrinterDiscoverySession extends PrinterDiscoverySession {
     private PrinterInfo printerInfo;
 
 
-    ThermalPrinterDiscoverySession(PrinterInfo printerInfo) {
+    ThermalPrinterDiscoverySession(PrinterInfo printerInfo ) {
 
 
-        PrintAttributes.MediaSize mediaSize58 = new PrintAttributes.MediaSize("58M", "58M", 2283, 6000);
-         PrintAttributes.MediaSize mediaSize580 = new PrintAttributes.MediaSize("580M", "580M", 580, 1000);
-        PrintAttributes.MediaSize mediaSize5800 = new PrintAttributes.MediaSize("6830M", "6830M", 6830, 8270);
+//        float widthInches = 2.0f;
+//        float heightInches = 5.906f;
+//        int widthMils = (int) (widthInches * 1090);
+//        int heightMils = (int) (heightInches * 1090);
 
+// Use the existing constructor to create the instance
+        PrintAttributes.MediaSize mediaSize58 = new PrintAttributes.MediaSize("58M", "58M", 2380, 6800);
         PrinterCapabilitiesInfo capabilities =
                 new PrinterCapabilitiesInfo.Builder(printerInfo.getId())
                       .addMediaSize(  mediaSize58, true)
-                      .addMediaSize(  mediaSize580, false)
-                      .addMediaSize(  mediaSize5800, false)
-                      .addMediaSize(PrintAttributes.MediaSize.ISO_A5, false)
-                        .addResolution(new PrintAttributes.Resolution("1234","Default",200,200), true)
-                       .setColorModes(PrintAttributes.COLOR_MODE_MONOCHROME, PrintAttributes.COLOR_MODE_MONOCHROME).build();
+                        .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
+                         .addResolution(new PrintAttributes.Resolution("R2", "200X200", 200, 200), true)
+                        .setColorModes(PrintAttributes.COLOR_MODE_MONOCHROME, PrintAttributes.COLOR_MODE_MONOCHROME).build();
 
         this.printerInfo = new PrinterInfo.Builder(printerInfo)
                 .setCapabilities(capabilities)
                 .build();
+
     }
+
 
     @Override
     public void onStartPrinterDiscovery(List<PrinterId> priorityList) {
@@ -291,6 +254,8 @@ class ThermalPrinterDiscoverySession extends PrinterDiscoverySession {
 
     @Override
     public void onStartPrinterStateTracking(PrinterId printerId) {
+
+
         Log.d(TAG, "onStartPrinterStateTracking: ");
     }
 

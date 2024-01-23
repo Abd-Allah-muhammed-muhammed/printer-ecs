@@ -146,6 +146,8 @@ public class MainActivity extends AppCompatActivity {
                         ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.BLUETOOTH_CONNECT}, 100);
                     }else
                     {
+
+
                          mPairedDevices.add(device.getName() + "\n" + device.getAddress());
                      }
 
