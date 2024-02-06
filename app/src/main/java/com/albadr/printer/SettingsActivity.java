@@ -1,4 +1,4 @@
-package com.example.myapplication;
+package com.albadr.printer;
 
 
 import android.annotation.TargetApi;
@@ -19,7 +19,6 @@ import android.preference.RingtonePreference;
  import android.text.TextUtils;
 import android.util.Log;
 import android.view.MenuItem;
-import android.widget.Toast;
 
 import androidx.appcompat.app.ActionBar;
 
@@ -36,7 +35,7 @@ import java.util.List;
  * href="http://developer.android.com/guide/topics/ui/settings.html">Settings
  * API Guide</a> for more information on developing a Settings UI.
  */
-public class SettingsActivity extends AppCompatPreferenceActivity {
+public class SettingsActivity extends com.albadr.printer.AppCompatPreferenceActivity {
     /**
      * A preference value change listener that updates the preference's summary
      * to reflect its new value.

@@ -1,4 +1,4 @@
-package com.example.myapplication.util;
+package com.albadr.printer.util;
 
 
 import android.graphics.Bitmap;

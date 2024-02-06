@@ -78,4 +78,5 @@
 
     <string name="pref_title_vibrate">Vibrate</string>
     <string name="title_activity_add_printer">AddPrinterActivity</string>
+    <string name="printer_size">مقاس الطابعة</string>
 </resources>

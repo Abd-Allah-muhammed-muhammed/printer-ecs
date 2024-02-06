@@ -1,7 +1,6 @@
-package com.example.myapplication.util;
+package com.albadr.printer.util;
 
 import android.bluetooth.BluetoothAdapter;
-import android.content.Context;
 
 import java.util.ArrayList;
 

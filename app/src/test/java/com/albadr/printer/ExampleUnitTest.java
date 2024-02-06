@@ -1,4 +1,4 @@
-package com.example.myapplication;
+package com.albadr.printer;
 
 import org.junit.Test;
 

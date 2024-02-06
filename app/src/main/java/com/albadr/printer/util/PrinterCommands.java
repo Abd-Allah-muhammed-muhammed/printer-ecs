@@ -1,4 +1,4 @@
-package com.example.myapplication.util;
+package com.albadr.printer.util;
 
 public class PrinterCommands {
     public static final byte[] INIT = {27, 64};
