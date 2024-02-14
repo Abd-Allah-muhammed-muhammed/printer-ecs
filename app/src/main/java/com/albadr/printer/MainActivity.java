@@ -63,7 +63,7 @@ public class MainActivity extends AppCompatActivity {
              android.Manifest.permission.BLUETOOTH_SCAN,
             android.Manifest.permission.BLUETOOTH_CONNECT,
             android.Manifest.permission.READ_MEDIA_IMAGES,
-            android.Manifest.permission.BLUETOOTH_ADVERTISE ,
+            android.Manifest.permission.BLUETOOTH_ADVERTISE,
             android.Manifest.permission.BLUETOOTH_PRIVILEGED
     };
     SharedPreferencesManager sharedPreferencesManager = MyApp.getSharedPreferencesManager();
@@ -134,6 +134,8 @@ public class MainActivity extends AppCompatActivity {
                     1
             );
         }
+
+
     }
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -206,7 +208,6 @@ public class MainActivity extends AppCompatActivity {
                         ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.BLUETOOTH_CONNECT}, 100);
                     }else
                     {
-
 
                          mPairedDevices.add(device.getName() + "\n" + device.getAddress());
                      }
@@ -418,22 +419,6 @@ public class MainActivity extends AppCompatActivity {
         btService = null;
     }
 
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.menu_main, menu);
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        int id = item.getItemId();
-        if (id == R.id.action_settings) {
-//            startActivity(new Intent(MainActivity.this, SettingsActivity.class));
-
-            return true;
-        }
-        return super.onOptionsItemSelected(item);
-    }
 
 
     @Override

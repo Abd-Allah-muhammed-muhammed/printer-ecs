@@ -6,8 +6,10 @@ import static com.albadr.printer.util.Constants.mm80;
 import android.Manifest;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.net.ConnectivityManager;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
@@ -20,9 +22,7 @@ import android.printservice.PrintJob;
 import android.printservice.PrintService;
 import android.printservice.PrinterDiscoverySession;
 import android.util.Log;
-import android.view.View;
-import android.widget.ArrayAdapter;
-import android.widget.Toast;
+
 
 import androidx.annotation.Nullable;
 import androidx.core.app.ActivityCompat;
@@ -34,6 +34,7 @@ import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig;
 import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings;
 import com.zj.btsdk.BluetoothService;
+import com.albadr.printer.BuildConfig;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -107,27 +108,74 @@ public class ThermalPrintService extends PrintService {
         Message message = mHandler.obtainMessage(PrintHandler.MSG_HANDLE_PRINT_JOB, printJob);
         mHandler.sendMessageDelayed(message, 0);
     }
+    private boolean isNetworkConnected() {
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
 
+        return cm.getActiveNetworkInfo() != null && cm.getActiveNetworkInfo().isConnected();
+    }
     private void handleHandleQueuedPrintJob(final PrintJob printJob) {
 
 
-        SharedPreferencesManager sharedPreferencesManager = MyApp.getSharedPreferencesManager();
 
-        int numberPrinting = sharedPreferencesManager.getNumberPrinting();
+//        int numberPrinting = sharedPreferencesManager.getNumberPrinting();
+//
+//        if (numberPrinting == 0){
+//
+//            return;
+//        }else {
+//            numberPrinting = numberPrinting - 1;
+//            sharedPreferencesManager.saveNumberPrinting(numberPrinting);
+//        }
 
-        if (numberPrinting == 0){
+        if (!isNetworkConnected()) {
+            printJob.cancel();
 
             return;
-        }else {
-            numberPrinting = numberPrinting - 1;
-            sharedPreferencesManager.saveNumberPrinting(numberPrinting);
+            
         }
 
-        Log.d(LOG_TAG, "handleHandleQueuedPrintJob: ");
+        FirebaseRemoteConfig mFirebaseRemoteConfig = FirebaseRemoteConfig.getInstance();
+        FirebaseRemoteConfigSettings configSettings = new FirebaseRemoteConfigSettings.Builder()
+                .setMinimumFetchIntervalInSeconds(3600)
+                .build();
+
+        mFirebaseRemoteConfig.setConfigSettingsAsync(configSettings);
+        mFirebaseRemoteConfig.setDefaultsAsync(R.xml.remote_config_defaults);
+        mFirebaseRemoteConfig.fetchAndActivate()
+                .addOnCompleteListener( task -> {
+                    if (task.isSuccessful()) {
+                        long version = mFirebaseRemoteConfig.getAll().get("version").asLong();
+
+                         int versionCode = BuildConfig.VERSION_CODE;
+
+
+                        Log.d(TAG, "handleHandleQueuedPrintJob: "+versionCode);
+                        Log.d(TAG, "handleHandleQueuedPrintJob: "+version);
+                        if (versionCode < version) {
+                            printJob.cancel();
+
+                        }else {
+                            printNow(printJob);
+                            
+                        }
+
+                    }  
+
+                });
+
+
+
+
+    }
+
+    private static final String TAG = "ThermalPrintService";
+
+    private void printNow(PrintJob printJob) {
         if (printJob.isQueued()) {
-            printJob.start();
-        }
+           printJob.start();
+       }
 
+        SharedPreferencesManager sharedPreferencesManager = MyApp.getSharedPreferencesManager();
 
         final PrintJobInfo info = printJob.getInfo();
 
@@ -211,12 +259,10 @@ public class ThermalPrintService extends PrintService {
         } catch (IOException ioe) {
             Log.d(LOG_TAG, "handleHandleQueuedPrintJob:error " + ioe.getMessage());
         }
-
     }
 
 
-
-        private final class PrintHandler extends Handler {
+    private final class PrintHandler extends Handler {
             static final int MSG_HANDLE_PRINT_JOB = 3;
 
             public PrintHandler(Looper looper) {
