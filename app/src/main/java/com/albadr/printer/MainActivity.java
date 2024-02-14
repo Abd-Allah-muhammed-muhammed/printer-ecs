@@ -5,6 +5,7 @@ import static com.albadr.printer.util.Constants.mm50;
 import static com.albadr.printer.util.Constants.mm80;
 
 import android.Manifest;
+import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -188,44 +189,54 @@ public class MainActivity extends AppCompatActivity {
                 builderSingle.show();
             }
         });
+        BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
 
+        if (bluetoothAdapter == null) {
 
-        Set<BluetoothDevice> pairedDevices = btService.getPairedDev();
+            Toast.makeText(this, "Bluetooth is not supported on this device", Toast.LENGTH_SHORT).show();
 
-
-        if (pairedDevices.size() > 0) {
-            for (BluetoothDevice device : pairedDevices) {
-                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                    // TODO: Consider calling
-                    //    ActivityCompat#requestPermissions
-                    // here to request the missing permissions, and then overriding
-                    //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-                    //                                          int[] grantResults)
-                    // to handle the case where the user grants the permission. See the documentation
-                    // for ActivityCompat#requestPermissions for more details.
-
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.BLUETOOTH_CONNECT}, 100);
-                    }else
-                    {
-
-                         mPairedDevices.add(device.getName() + "\n" + device.getAddress());
-                     }
-
-                    return;
-                }
-
-                 mPairedDevices.add(device.getName() + "\n" + device.getAddress());
-
-                Log.d(TAG, "onCreate: "+device.getName() + "\n" + device.getAddress());
-
-            }
         } else {
-             mPairedDevices.add("No printers");
+
+            Set<BluetoothDevice> pairedDevices = btService.getPairedDev();
+
+            if (pairedDevices.size() > 0) {
+                for (BluetoothDevice device : pairedDevices) {
+                    if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                        // TODO: Consider calling
+                        //    ActivityCompat#requestPermissions
+                        // here to request the missing permissions, and then overriding
+                        //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+                        //                                          int[] grantResults)
+                        // to handle the case where the user grants the permission. See the documentation
+                        // for ActivityCompat#requestPermissions for more details.
+
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.BLUETOOTH_CONNECT}, 100);
+                        }else
+                        {
+
+                            mPairedDevices.add(device.getName() + "\n" + device.getAddress());
+                        }
+
+                        return;
+                    }
+
+                    mPairedDevices.add(device.getName() + "\n" + device.getAddress());
+
+                    Log.d(TAG, "onCreate: "+device.getName() + "\n" + device.getAddress());
+
+                }
+            } else {
+                mPairedDevices.add("No printers");
+            }
+
+
+            firebase();
         }
 
 
-        firebase();
+
+
     }
 
     private void firebase() {
