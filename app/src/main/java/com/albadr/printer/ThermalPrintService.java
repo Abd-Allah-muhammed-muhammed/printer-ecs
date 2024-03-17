@@ -1,5 +1,7 @@
 package com.albadr.printer;
 
+import static com.albadr.printer.util.Constants.PRINTER_390;
+import static com.albadr.printer.util.Constants.PRINTER_500;
 import static com.albadr.printer.util.Constants.mm50;
 import static com.albadr.printer.util.Constants.mm80;
 
@@ -9,6 +11,10 @@ import android.bluetooth.BluetoothSocket;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.drawable.Drawable;
 import android.net.ConnectivityManager;
 import android.os.Handler;
 import android.os.Looper;
@@ -45,7 +51,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executor;
-
+import net.posprinter.POSConst;
+import net.posprinter.POSPrinter;
+import net.posprinter.TSPLConst;
+import net.posprinter.TSPLPrinter;
+import net.posprinter.model.AlgorithmType;
 public class ThermalPrintService extends PrintService {
 
     private static final String LOG_TAG = "ThermalPrintService";
@@ -53,20 +63,7 @@ public class ThermalPrintService extends PrintService {
     private PrinterInfo mThermalPrinter;
     private Handler mHandler;
 
-    private final Handler mHandler1 = new Handler() {
-        @Override
-        public void handleMessage(Message msg) {
-            Log.d("TAG", "handleMessage: printing...0" + msg);
-            switch (msg.what) {
-                case BluetoothService.MESSAGE_STATE_CHANGE:
-                    if (msg.arg1 == BluetoothService.STATE_CONNECTED)
-                        Log.d("TAG", "handleMessage: STATE_CONNECTED...");
-                    break;
-                case BluetoothService.MESSAGE_UNABLE_CONNECT:
-                    break;
-            }
-        }
-    };
+
 
 
 
@@ -200,11 +197,11 @@ public class ThermalPrintService extends PrintService {
             out.close();
 
 
-            BluetoothService btService = new BluetoothService(this, mHandler1);
-            String address = sharedPreferencesManager.getPrintAddress();
-            Log.d("TAG", "address: " + address);
-            BluetoothDevice con_dev = btService.getDevByMac(address);
-            btService.connect(con_dev);
+
+            POSPrinter printerPos = new POSPrinter(MyApp.get().curConnect);
+
+
+
 
 
             ArrayList<Bitmap> bitmaps = PrintUtils.pdfToBitmap(file);
@@ -213,41 +210,30 @@ public class ThermalPrintService extends PrintService {
             for (int i = 0; i < bitmaps.size(); i++) {
 
 
-                int mediaSize;
-
+                int mWidth;
                 if (sharedPreferencesManager.getPrintSize().equals(mm50)) {
 
-                    mediaSize = 410;
-                }else if (sharedPreferencesManager.getPrintSize().equals(mm80)){
+                    mWidth =  PRINTER_390;
 
-                    mediaSize = 565;
                 }else {
 
-                    mediaSize = 735;
+                    mWidth=  PRINTER_500;
                 }
 
-
-
-
-                byte[] sendData = null;
-                PrintBitmap pg = new PrintBitmap();
-                pg.initCanvas(mediaSize);
-                pg.initPaint();
-                Bitmap originalBitmap = bitmaps.get(i);
-                pg.drawImage(0, 0, originalBitmap);
-
-                sendData = pg.printDraw();
 
                 try {
-
-                    btService.write(sendData);
-
+                    printerPos.initializePrinter()
+                            .printBitmap(bitmaps.get(i), POSConst.ALIGNMENT_CENTER, mWidth)
+                            .feedLine()
+                            .cutHalfAndFeed(1);
                 } catch (Exception e) {
-                    Log.d("TAG", "Exception: " + e.getMessage());
-                    e.printStackTrace();
+
+                    Log.d(TAG, "printPicCode: "+e.getMessage());
+
+
                 }
 
-                Log.d("TAG", "btService: ");
+
 
             }
 
@@ -289,7 +275,6 @@ public class ThermalPrintService extends PrintService {
 
 
             ThermalPrinterDiscoverySession(PrinterInfo printerInfo) {
-
 
 
                 PrintAttributes.MediaSize mediaSize58 = new PrintAttributes.MediaSize("58M", "58M", 3200, 8800);

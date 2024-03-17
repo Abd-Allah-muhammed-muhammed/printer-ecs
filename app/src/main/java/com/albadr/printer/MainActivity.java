@@ -39,6 +39,7 @@ import androidx.core.app.ActivityCompat;
 import com.albadr.printer.util.PrintBitmap;
 import com.albadr.printer.util.PrintUtils;
 import com.albadr.printer.util.SharedPreferencesManager;
+import com.albadr.printer.util.UIUtils;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
@@ -51,8 +52,12 @@ import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings;
 import com.albadr.printer.BuildConfig;
 import com.zj.btsdk.BluetoothService;
 
+import net.posprinter.POSConst;
+import net.posprinter.POSPrinter;
+
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Objects;
 import java.util.Set;
 
 public class MainActivity extends AppCompatActivity {
@@ -75,7 +80,7 @@ public class MainActivity extends AppCompatActivity {
     BluetoothDevice con_dev;
     BluetoothService btService;
     ArrayAdapter<String> mPairedDevices;
-    boolean isConnected = false;
+   public static boolean isConnected = false;
     String filePath = null;
     Bitmap printData = null;
     private TextView imageView;
@@ -151,7 +156,15 @@ public class MainActivity extends AppCompatActivity {
         radio80 = findViewById(R.id.radio80);
         radio100 = findViewById(R.id.radio100);
         radioGroup = findViewById(R.id.group_size);
-        imageView.setText("Selected Printer: " + sharedPreferencesManager.getPrintName());
+
+
+        if (!sharedPreferencesManager.getPrintAddress().isEmpty()) {
+
+            connectBt(sharedPreferencesManager.getPrintAddress());
+            imageView.setText("Selected Printer: " + sharedPreferencesManager.getPrintName());
+
+        }
+
 
 
         printSizes();
@@ -237,6 +250,16 @@ public class MainActivity extends AppCompatActivity {
 
 
 
+    }
+    private void connectBt(String address) {
+         if (Objects.equals(address, "")) {
+            UIUtils.toast(R.string.bt_select);
+
+        } else {
+
+            Toast.makeText(this, "جاري الاتصال...", Toast.LENGTH_SHORT).show();
+            MyApp.get().connectBt(address);
+        }
     }
 
     private void firebase() {
@@ -349,7 +372,10 @@ public class MainActivity extends AppCompatActivity {
                     String info = mPairedDevices.getItem(which);
                     String address = info.substring(info.length() - 17);
                     con_dev = btService.getDevByMac(address);
-                    btService.connect(con_dev);
+
+                    connectBt(con_dev.getAddress());
+
+//                  btService.connect(con_dev);
                     sharedPreferencesManager.savePrintAddress(con_dev.getAddress());
                     sharedPreferencesManager.savePrintName(con_dev.getName());
                     imageView.setText("Selected Printer: " + con_dev.getName());
@@ -388,15 +414,21 @@ public class MainActivity extends AppCompatActivity {
 
     private void print() {
 
-        Log.d("print", "print: ............");
-        byte[] sendData = null;
-        PrintBitmap pg = new PrintBitmap();
-        pg.initCanvas(410);
-        pg.initPaint();
-        pg.drawImage(0, 0, printData);
-        sendData = pg.printDraw();
-        btService.write(sendData);
+        POSPrinter printerPos = new POSPrinter(MyApp.get().curConnect);
+        String str = "Welcome to  Albadr systems \n,this is print test content!\n";
+
+        printerPos. printString(str)
+                .printText(
+                        "Albadr Printer!\n",
+                        POSConst.ALIGNMENT_CENTER,
+                        POSConst.FNT_BOLD | POSConst.FNT_UNDERLINE,
+                        POSConst.TXT_1WIDTH | POSConst.TXT_2HEIGHT
+                ).feedLine(5)
+
+                .cutHalfAndFeed(1);
     }
+
+
 
     private final Handler mHandler = new Handler() {
         @Override

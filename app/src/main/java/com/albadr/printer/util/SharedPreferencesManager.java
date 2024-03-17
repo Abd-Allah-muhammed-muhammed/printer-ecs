@@ -38,7 +38,7 @@ public class SharedPreferencesManager {
     }
 
     public String getPrintName() {
-        return sharedPreferences.getString(KEY_PRINT_NAME, "لا يوجد");
+        return sharedPreferences.getString(KEY_PRINT_NAME, "");
     }
 
     public void savePrintName(String size) {
@@ -47,7 +47,7 @@ public class SharedPreferencesManager {
     }
 
     public String getPrintAddress() {
-        return sharedPreferences.getString(KEY_PRINT_ADDRESS, "لا يوجد");
+        return sharedPreferences.getString(KEY_PRINT_ADDRESS, "");
     }
 
     public void savePrintAddress(String address) {

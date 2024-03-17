@@ -79,4 +79,19 @@
     <string name="pref_title_vibrate">Vibrate</string>
     <string name="title_activity_add_printer">AddPrinterActivity</string>
     <string name="printer_size">مقاس الطابعة</string>
+
+
+
+
+    <string name="con_success">تم الاتصال بنجاح</string>
+    <string name="con_failed">لم يتم الاتصال</string>
+    <string name="con_has_disconnect">تم الغاء الاتصال</string>
+    <string name="send_failed">فشل الارسال</string>
+    <string name="connect">اتصال</string>
+    <string name="disconnect">الغاء الاتصال</string>
+    <string name="bt_select">من فضلك اختر الطابعة</string>
+    <string name="all_device">كل الاجهزة</string>
+    <string name="request_permission_fail">فشل في الحصول علي الصلاحيات</string>
+    <string name="paired">مقترن</string>
+    <string name="connect_printer_first">اختر الطابعه من الاعدادات اولا</string>
 </resources>

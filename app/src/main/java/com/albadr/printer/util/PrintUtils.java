@@ -5,6 +5,9 @@ package com.albadr.printer.util;
   import static com.albadr.printer.util.Constants.mm80;
 
   import android.graphics.Bitmap;
+  import android.graphics.Canvas;
+  import android.graphics.Color;
+  import android.graphics.ColorSpace;
   import android.graphics.pdf.PdfRenderer;
   import android.os.ParcelFileDescriptor;
   import android.util.Log;
@@ -22,7 +25,7 @@ public class PrintUtils {
         ArrayList<Bitmap> bitmaps = new ArrayList<>();
 
         try {
-            PdfRenderer renderer = new PdfRenderer(ParcelFileDescriptor.open(pdfFile, ParcelFileDescriptor.MODE_READ_ONLY));
+            PdfRenderer renderer = new PdfRenderer(ParcelFileDescriptor.open(pdfFile, ParcelFileDescriptor.MODE_READ_WRITE));
 
 
             Bitmap bitmap;
@@ -65,6 +68,8 @@ public class PrintUtils {
 
 
                   bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+
+
 
                 page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
 
