@@ -33,12 +33,15 @@ import android.util.Log;
 import androidx.annotation.Nullable;
 import androidx.core.app.ActivityCompat;
 
+import com.albadr.printer.util.Constants;
 import com.albadr.printer.util.PrintBitmap;
 import com.albadr.printer.util.PrintUtils;
 import com.albadr.printer.util.SharedPreferencesManager;
+import com.albadr.printer.util.UIUtils;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig;
 import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings;
+import com.jeremyliao.liveeventbus.LiveEventBus;
 import com.zj.btsdk.BluetoothService;
 import com.albadr.printer.BuildConfig;
 
@@ -51,6 +54,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executor;
+
+import net.posprinter.IDeviceConnection;
+import net.posprinter.POSConnect;
 import net.posprinter.POSConst;
 import net.posprinter.POSPrinter;
 import net.posprinter.TSPLConst;
@@ -62,9 +68,6 @@ public class ThermalPrintService extends PrintService {
 
     private PrinterInfo mThermalPrinter;
     private Handler mHandler;
-
-
-
 
 
     @Override
@@ -105,13 +108,14 @@ public class ThermalPrintService extends PrintService {
         Message message = mHandler.obtainMessage(PrintHandler.MSG_HANDLE_PRINT_JOB, printJob);
         mHandler.sendMessageDelayed(message, 0);
     }
+
     private boolean isNetworkConnected() {
         ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
 
         return cm.getActiveNetworkInfo() != null && cm.getActiveNetworkInfo().isConnected();
     }
-    private void handleHandleQueuedPrintJob(final PrintJob printJob) {
 
+    private void handleHandleQueuedPrintJob(final PrintJob printJob) {
 
 
 //        int numberPrinting = sharedPreferencesManager.getNumberPrinting();
@@ -123,6 +127,27 @@ public class ThermalPrintService extends PrintService {
 //            numberPrinting = numberPrinting - 1;
 //            sharedPreferencesManager.saveNumberPrinting(numberPrinting);
 //        }
+
+
+        if (MyApp.get().curConnect == null) {
+
+
+            UIUtils.toast("من فضلك اعد المحاولة مرة اخري");
+
+            // Optionally cancel the print job or try to reconnect
+//            printJob.cancel();
+
+            SharedPreferencesManager sharedPreferencesManager = MyApp.getSharedPreferencesManager();
+
+            MyApp.get().connectBt(sharedPreferencesManager.getPrintAddress());
+
+
+
+
+        }
+
+
+
 
         if (!isNetworkConnected()) {
             printJob.cancel();
@@ -148,7 +173,7 @@ public class ThermalPrintService extends PrintService {
 
                         Log.d(TAG, "handleHandleQueuedPrintJob: "+versionCode);
                         Log.d(TAG, "handleHandleQueuedPrintJob: "+version);
-                        if (versionCode < version) {
+                        if (versionCode != version) {
                             printJob.cancel();
 
                         }else {
@@ -171,6 +196,8 @@ public class ThermalPrintService extends PrintService {
         if (printJob.isQueued()) {
            printJob.start();
        }
+
+
 
         SharedPreferencesManager sharedPreferencesManager = MyApp.getSharedPreferencesManager();
 

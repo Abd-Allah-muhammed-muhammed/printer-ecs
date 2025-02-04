@@ -5,6 +5,7 @@ import static com.albadr.printer.util.Constants.mm50;
 import static com.albadr.printer.util.Constants.mm80;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.content.DialogInterface;
@@ -43,13 +44,13 @@ import com.albadr.printer.util.UIUtils;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
- import com.google.firebase.remoteconfig.ConfigUpdate;
+import com.google.firebase.remoteconfig.ConfigUpdate;
 import com.google.firebase.remoteconfig.ConfigUpdateListener;
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig;
 import com.google.firebase.remoteconfig.FirebaseRemoteConfigException;
 import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings;
 
-import com.albadr.printer.BuildConfig;
+
 import com.zj.btsdk.BluetoothService;
 
 import net.posprinter.POSConst;
@@ -61,12 +62,12 @@ import java.util.Objects;
 import java.util.Set;
 
 public class MainActivity extends AppCompatActivity {
-    private   final String TAG = "MainActivity";
+    private final String TAG = "MainActivity";
 
     private static String[] PERMISSIONS_STORAGE = {
             android.Manifest.permission.READ_EXTERNAL_STORAGE,
             android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
-             android.Manifest.permission.BLUETOOTH_SCAN,
+            android.Manifest.permission.BLUETOOTH_SCAN,
             android.Manifest.permission.BLUETOOTH_CONNECT,
             android.Manifest.permission.READ_MEDIA_IMAGES,
             android.Manifest.permission.BLUETOOTH_ADVERTISE,
@@ -80,17 +81,17 @@ public class MainActivity extends AppCompatActivity {
     BluetoothDevice con_dev;
     BluetoothService btService;
     ArrayAdapter<String> mPairedDevices;
-   public static boolean isConnected = false;
+    public static boolean isConnected = false;
     String filePath = null;
     Bitmap printData = null;
     private TextView imageView;
-    private RadioButton radio50 , radio80 , radio100;
+    private RadioButton radio50, radio80, radio100;
     private RadioGroup radioGroup;
     private LinearLayout li_update;
     private Button btn_update;
     private FloatingActionButton fab;
 
-    private void checkPermissions(){
+    private void checkPermissions() {
         int permission1 = ActivityCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE);
 
 
@@ -113,7 +114,6 @@ public class MainActivity extends AppCompatActivity {
         }
 
 
-
         if (permission1 != PackageManager.PERMISSION_GRANTED) {
             // We don't have permission so prompt the user
             ActivityCompat.requestPermissions(
@@ -121,19 +121,19 @@ public class MainActivity extends AppCompatActivity {
                     PERMISSIONS_STORAGE,
                     1
             );
-        } else if (permission2 != PackageManager.PERMISSION_GRANTED){
+        } else if (permission2 != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(
                     this,
                     PERMISSIONS_STORAGE,
                     1
             );
-        } else if (permission3 != PackageManager.PERMISSION_GRANTED){
+        } else if (permission3 != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(
                     this,
                     PERMISSIONS_STORAGE,
                     1
             );
-        }else if (permission4 != PackageManager.PERMISSION_GRANTED){
+        } else if (permission4 != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(
                     this,
                     new String[]{Manifest.permission.BLUETOOTH_CONNECT},
@@ -143,6 +143,7 @@ public class MainActivity extends AppCompatActivity {
 
 
     }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -166,22 +167,24 @@ public class MainActivity extends AppCompatActivity {
         }
 
 
-
         printSizes();
         checkPermissions();
         btService = new BluetoothService(this, mHandler);
         filePath = getIntent().getStringExtra("FILE");
         if (filePath != null) {
-            Log.d(TAG, "onCreate: "+filePath);
+            Log.d(TAG, "onCreate: " + filePath);
             ArrayList<Bitmap> bitmaps = PrintUtils.pdfToBitmap(new File(filePath));
 
-                printData = bitmaps.get(0);
+            printData = bitmaps.get(0);
 
 
         }
 
-        mPairedDevices = new ArrayAdapter<String>(MainActivity.this,
-                android.R.layout.simple_list_item_1, android.R.id.text1);
+
+
+        setPairedDevices();
+
+
 
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
 
@@ -189,20 +192,56 @@ public class MainActivity extends AppCompatActivity {
 
         initDeviceListDialog();
 
-         fab = (FloatingActionButton) findViewById(R.id.fab);
+        fab = (FloatingActionButton) findViewById(R.id.fab);
 
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                Log.d("TAG", "onClick: "+isConnected);
+                Log.d("TAG", "onClick: " + isConnected);
                 if (isConnected) {
                     print();
-                    return;
+
+                } else {
+
+                    BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+                    if (mBluetoothAdapter == null) {
+                        // Device does not support Bluetooth
+                    } else if (!mBluetoothAdapter.isEnabled()) {
+                        // Bluetooth is not enabled :)
+                        Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+                        if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                            // TODO: Consider calling
+                            //    ActivityCompat#requestPermissions
+
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.BLUETOOTH_CONNECT}, 100);
+                            }
+
+                            return;
+                        }
+                        startActivityForResult(enableIntent, 505);
+                    } else {
+                        setPairedDevices();
+                        initDeviceListDialog();
+                        builderSingle.show();
+                    }
+
                 }
-                builderSingle.show();
+
             }
         });
+
+        firebase();
+
+    }
+
+    private void setPairedDevices() {
+
+        mPairedDevices = new ArrayAdapter<String>(MainActivity.this,
+                android.R.layout.simple_list_item_1, android.R.id.text1);
+
         BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+
 
         if (bluetoothAdapter == null) {
 
@@ -225,8 +264,7 @@ public class MainActivity extends AppCompatActivity {
 
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.BLUETOOTH_CONNECT}, 100);
-                        }else
-                        {
+                        } else {
 
                             mPairedDevices.add(device.getName() + "\n" + device.getAddress());
                         }
@@ -236,7 +274,7 @@ public class MainActivity extends AppCompatActivity {
 
                     mPairedDevices.add(device.getName() + "\n" + device.getAddress());
 
-                    Log.d(TAG, "onCreate: "+device.getName() + "\n" + device.getAddress());
+                    Log.d(TAG, "onCreate: " + device.getName() + "\n" + device.getAddress());
 
                 }
             } else {
@@ -244,15 +282,14 @@ public class MainActivity extends AppCompatActivity {
             }
 
 
-            firebase();
         }
 
 
 
-
     }
+
     private void connectBt(String address) {
-         if (Objects.equals(address, "")) {
+        if (Objects.equals(address, "")) {
             UIUtils.toast(R.string.bt_select);
 
         } else {
@@ -277,12 +314,13 @@ public class MainActivity extends AppCompatActivity {
                     if (task.isSuccessful()) {
                         long version = mFirebaseRemoteConfig.getAll().get("version").asLong();
 
-                        Log.d(TAG, "firebase: "+version);
-                        int versionCode = BuildConfig.VERSION_CODE;
 
-                        if (versionCode < version) {
+                        int versionCode = BuildConfig.VERSION_CODE;
+                        Log.d(TAG, "firebase: " + version);
+                        Log.d(TAG, "firebase: " + versionCode);
+                        if (versionCode != version) {
                             showUpdateDialog();
-                        }else {
+                        } else {
                             li_update.setVisibility(View.GONE);
                             fab.setVisibility(View.VISIBLE);
                         }
@@ -303,12 +341,12 @@ public class MainActivity extends AppCompatActivity {
                     if (configUpdate.getUpdatedKeys().contains("version")) {
 
                         long version = mFirebaseRemoteConfig.getAll().get("version").asLong();
-                        Log.d(TAG, "firebase:onUpdate "+version);
+                        Log.d(TAG, "firebase:onUpdate " + version);
                         int versionCode = BuildConfig.VERSION_CODE;
 
                         if (versionCode < version) {
                             showUpdateDialog();
-                        }else {
+                        } else {
 
                             li_update.setVisibility(View.GONE);
                             fab.setVisibility(View.VISIBLE);
@@ -317,21 +355,18 @@ public class MainActivity extends AppCompatActivity {
                     }
 
 
-
-
                 });
 
             }
 
             @Override
             public void onError(@NonNull FirebaseRemoteConfigException error) {
-                Log.d(TAG, "onError: "+error);
+                Log.d(TAG, "onError: " + error);
 
             }
 
 
         });
-
 
 
     }
@@ -340,13 +375,13 @@ public class MainActivity extends AppCompatActivity {
 
         li_update.setVisibility(View.VISIBLE);
         fab.setVisibility(View.GONE);
-        btn_update.setOnClickListener( v -> openAppInStore());
+        btn_update.setOnClickListener(v -> openAppInStore());
 
     }
 
 
     private void openAppInStore() {
-         String appPackageName = "com.albadr.printer";
+        String appPackageName = "com.albadr.printer";
 
         try {
             // Open the app's page on the Play Store
@@ -356,6 +391,8 @@ public class MainActivity extends AppCompatActivity {
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=" + appPackageName)));
         }
     }
+
+    @SuppressLint("SetTextI18n")
     private void initDeviceListDialog() {
         builderSingle = new AlertDialog.Builder(MainActivity.this);
         builderSingle.setIcon(android.R.drawable.ic_btn_speak_now);
@@ -366,7 +403,7 @@ public class MainActivity extends AppCompatActivity {
                 (dialog, which) -> dialog.dismiss());
 
 
-         builderSingle.setAdapter(
+        builderSingle.setAdapter(
                 mPairedDevices,
                 (dialog, which) -> {
                     String info = mPairedDevices.getItem(which);
@@ -377,6 +414,16 @@ public class MainActivity extends AppCompatActivity {
 
 //                  btService.connect(con_dev);
                     sharedPreferencesManager.savePrintAddress(con_dev.getAddress());
+                    if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+
+
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.BLUETOOTH_CONNECT}, 100);
+                        } else {
+                            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.BLUETOOTH}, 100);
+                        }
+                        return;
+                    }
                     sharedPreferencesManager.savePrintName(con_dev.getName());
                     imageView.setText("Selected Printer: " + con_dev.getName());
                 });
@@ -473,4 +520,7 @@ public class MainActivity extends AppCompatActivity {
     public void onStop() {
         super.onStop();
     }
+
+
+
 }

@@ -13,11 +13,13 @@ android {
         applicationId = "com.albadr.printer"
         minSdk = 24
         targetSdk = 34
-        versionCode = 4
-        versionName = "4.0.0"
+        versionCode = 6
+        versionName = "6.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
+
+
 
     buildTypes {
         release {
