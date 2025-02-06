@@ -1,23 +1,0 @@
-
-È
-
-;
-android*http://schemas.android.com/apk/res/androidPpreference-headers*—
-header"{
-*http://schemas.android.com/apk/res/androidfragment>com.example.printer.SettingsActivity$GeneralPreferenceFragment(ã…„"
-*http://schemas.android.com/apk/res/androidtitle@string/pref_header_general"(áƒ„2&
-$½Èøstring/pref_header_general0"‚
-*http://schemas.android.com/apk/res/androidicon@drawable/ic_info_black_24dp"(‚€„2'
-%  ødrawable/ic_info_black_24dp07*»
-²header"€
-*http://schemas.android.com/apk/res/androidfragmentCcom.example.printer.SettingsActivity$NotificationPreferenceFragment(ã…„"
-*http://schemas.android.com/apk/res/androidtitle!@string/pref_header_notifications"(áƒ„2,
-*¾Èø string/pref_header_notifications0"”
-*http://schemas.android.com/apk/res/androidicon%@drawable/ic_notifications_black_24dp"(‚€„20
-.« ø$drawable/ic_notifications_black_24dp0=*œ
-“header"|
-*http://schemas.android.com/apk/res/androidfragment?com.example.printer.SettingsActivity$DataSyncPreferenceFragment(ã…„"…
-*http://schemas.android.com/apk/res/androidtitle@string/pref_header_data_sync"(áƒ„2(
-&¼Èøstring/pref_header_data_sync0"‚
-*http://schemas.android.com/apk/res/androidicon@drawable/ic_sync_black_24dp"(‚€„2'
-%® ødrawable/ic_sync_black_24dp09P

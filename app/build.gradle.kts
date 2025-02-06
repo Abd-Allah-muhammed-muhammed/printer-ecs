@@ -1,6 +1,8 @@
 plugins {
     id("com.android.application")
     id("com.google.gms.google-services")
+    id("com.google.firebase.crashlytics")
+
 }
 
 android {
@@ -13,8 +15,8 @@ android {
         applicationId = "com.albadr.printer"
         minSdk = 24
         targetSdk = 34
-        versionCode = 6
-        versionName = "6.0.0"
+        versionCode = 7
+        versionName = "7.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -54,7 +56,8 @@ dependencies {
     implementation("com.squareup.picasso:picasso:2.71828")
 //    implementation("printer-lib-3.1.6', ext: 'aar")
 //    implementation("printer-lib-3.1.6', ext: 'aar")
-    implementation("io.github.jeremyliao:live-event-bus-x:1.8.0")
+//    implementation("io.github.jeremyliao:live-event-bus-x:1.8.0")
+     implementation ("com.github.neo-turak:LiveEventBus:1.8.1")
     implementation("io.reactivex.rxjava3:rxjava:3.1.5")
 
     implementation(files("libs/printer-lib-3.1.6.aar"))
@@ -68,6 +71,11 @@ dependencies {
     implementation("com.google.firebase:firebase-analytics")
 
     implementation("com.google.firebase:firebase-config")
+
+    // Add the dependencies for the Crashlytics and Analytics libraries
+    // When using the BoM, you don't specify versions in Firebase library dependencies
+    implementation("com.google.firebase:firebase-crashlytics")
+    implementation("com.google.firebase:firebase-analytics")
 // albadr.envoy@gmail.com
 
 

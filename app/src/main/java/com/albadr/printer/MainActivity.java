@@ -160,7 +160,6 @@ public class MainActivity extends AppCompatActivity {
 
 
         if (!sharedPreferencesManager.getPrintAddress().isEmpty()) {
-
             connectBt(sharedPreferencesManager.getPrintAddress());
             imageView.setText("Selected Printer: " + sharedPreferencesManager.getPrintName());
 
@@ -235,57 +234,40 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    private void setPairedDevices() {
+    private static final int REQUEST_CODE_BLUETOOTH_CONNECT = 100;
 
-        mPairedDevices = new ArrayAdapter<String>(MainActivity.this,
+    private void setPairedDevices() {
+        // Check for the Bluetooth permission on Android S (API 31) and above.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.BLUETOOTH_CONNECT}, REQUEST_CODE_BLUETOOTH_CONNECT);
+            // Return here and wait for the permission callback before proceeding.
+            return;
+        }
+
+        // Initialize your adapter
+        mPairedDevices = new ArrayAdapter<>(MainActivity.this,
                 android.R.layout.simple_list_item_1, android.R.id.text1);
 
         BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
 
-
         if (bluetoothAdapter == null) {
-
             Toast.makeText(this, "Bluetooth is not supported on this device", Toast.LENGTH_SHORT).show();
-
-        } else {
-
-            Set<BluetoothDevice> pairedDevices = btService.getPairedDev();
-
-            if (pairedDevices.size() > 0) {
-                for (BluetoothDevice device : pairedDevices) {
-                    if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                        // TODO: Consider calling
-                        //    ActivityCompat#requestPermissions
-                        // here to request the missing permissions, and then overriding
-                        //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-                        //                                          int[] grantResults)
-                        // to handle the case where the user grants the permission. See the documentation
-                        // for ActivityCompat#requestPermissions for more details.
-
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.BLUETOOTH_CONNECT}, 100);
-                        } else {
-
-                            mPairedDevices.add(device.getName() + "\n" + device.getAddress());
-                        }
-
-                        return;
-                    }
-
-                    mPairedDevices.add(device.getName() + "\n" + device.getAddress());
-
-                    Log.d(TAG, "onCreate: " + device.getName() + "\n" + device.getAddress());
-
-                }
-            } else {
-                mPairedDevices.add("No printers");
-            }
-
-
+            return;
         }
 
+        // Now that we have permission, get the paired devices.
+        Set<BluetoothDevice> pairedDevices = btService.getPairedDev();
 
-
+        if (pairedDevices != null && pairedDevices.size() > 0) {
+            for (BluetoothDevice device : pairedDevices) {
+                // Since permission is already granted, it's safe to use device methods.
+                mPairedDevices.add(device.getName() + "\n" + device.getAddress());
+                Log.d(TAG, "onCreate: " + device.getName() + "\n" + device.getAddress());
+            }
+        } else {
+            mPairedDevices.add("No printers");
+        }
     }
 
     private void connectBt(String address) {
@@ -313,8 +295,6 @@ public class MainActivity extends AppCompatActivity {
                 .addOnCompleteListener(this, task -> {
                     if (task.isSuccessful()) {
                         long version = mFirebaseRemoteConfig.getAll().get("version").asLong();
-
-
                         int versionCode = BuildConfig.VERSION_CODE;
                         Log.d(TAG, "firebase: " + version);
                         Log.d(TAG, "firebase: " + versionCode);
@@ -521,6 +501,18 @@ public class MainActivity extends AppCompatActivity {
         super.onStop();
     }
 
-
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_CODE_BLUETOOTH_CONNECT) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // Permission granted, try setting up the paired devices again.
+                setPairedDevices();
+            } else {
+                // Permission denied, show an error message or disable Bluetooth-related features.
+                Toast.makeText(this, "Bluetooth permission is required to list paired devices", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
 
 }

@@ -20,19 +20,44 @@ public class MyApp extends Application {
 
     private IConnectListener connectListener = (code, s, s1) -> {
         switch (code) {
+
+
             case POSConnect.CONNECT_SUCCESS:
-                UIUtils.toast(getString(R.string.con_success));
-                sharedPreferencesManager.savePrintAddress(s);
-                MainActivity.isConnected = true;
-                LiveEventBus.get(Constants.EVENT_CONNECT_STATUS).post(true);
+                try {
+                    UIUtils.toast(getString(R.string.con_success));
+                    sharedPreferencesManager.savePrintAddress(s);
+                    MainActivity.isConnected = true;
+                    LiveEventBus.get(Constants.EVENT_CONNECT_STATUS).post(true);
+                }catch (Exception e){
+                    UIUtils.toast(""+e.getMessage());
+                }
+
                 break;
             case POSConnect.CONNECT_FAIL:
-                UIUtils.toast(R.string.con_failed);
-                LiveEventBus.get(Constants.EVENT_CONNECT_STATUS).post(false);
+
+
+                try {
+                    UIUtils.toast(R.string.con_failed);
+                    LiveEventBus.get(Constants.EVENT_CONNECT_STATUS).post(false);
+                }catch (Exception e){
+                    UIUtils.toast(""+e.getMessage());
+                }
+
+
                 break;
             case POSConnect.CONNECT_INTERRUPT:
-                UIUtils.toast(R.string.con_has_disconnect);
-                LiveEventBus.get(Constants.EVENT_CONNECT_STATUS).post(false);
+
+                try {
+                    UIUtils.toast(R.string.con_has_disconnect);
+                    LiveEventBus.get(Constants.EVENT_CONNECT_STATUS).post(false);
+                }catch (Exception e){
+                    UIUtils.toast(""+e.getMessage());
+                }
+
+                break;
+
+            default:
+                    UIUtils.toast(""+code);
                 break;
 //            case POSConnect.SEND_FAIL:
 //                UIUtils.toast(R.string.send_failed);

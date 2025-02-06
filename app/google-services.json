@@ -2,7 +2,7 @@
   "project_info": {
     "project_number": "92685114121",
     "project_id": "albadr-printer",
-    "storage_bucket": "albadr-printer.appspot.com"
+    "storage_bucket": "albadr-printer.firebasestorage.app"
   },
   "client": [
     {
