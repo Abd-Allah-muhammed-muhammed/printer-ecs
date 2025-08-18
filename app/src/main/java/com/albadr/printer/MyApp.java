@@ -23,56 +23,52 @@ public class MyApp extends Application {
     private static final String TAG = "MyApp";
     private IConnectListener connectListener = (code, s, s1) -> {
 
-
         Log.d(TAG, "codeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"+code);
         switch (code) {
-
 
             case POSConnect.CONNECT_SUCCESS:
                 try {
                     UIUtils.toast(getString(R.string.con_success));
                     sharedPreferencesManager.savePrintAddress(s);
                     MainActivity.isConnected = true;
-                    LiveEventBus.get(Constants.EVENT_CONNECT_STATUS).post(true);
+                    // Use post with try-catch for Android 14+ compatibility
+                    postConnectionEvent(true);
                 }catch (Exception e){
                     UIUtils.toast(""+e.getMessage());
+                    Log.e(TAG, "Error posting connection success event: " + e.getMessage());
                 }
-
                 break;
+
             case POSConnect.CONNECT_FAIL:
-
-
                 try {
                     UIUtils.toast(R.string.con_failed);
-                    LiveEventBus.get(Constants.EVENT_CONNECT_STATUS).post(false);
+                    // Use post with try-catch for Android 14+ compatibility
+                    postConnectionEvent(false);
                 }catch (Exception e){
                     UIUtils.toast(""+e.getMessage());
+                    Log.e(TAG, "Error posting connection fail event: " + e.getMessage());
                 }
-
-
                 break;
-            case POSConnect.CONNECT_INTERRUPT:
 
+            case POSConnect.CONNECT_INTERRUPT:
                 try {
                     UIUtils.toast(R.string.con_has_disconnect);
-                    LiveEventBus.get(Constants.EVENT_CONNECT_STATUS).post(false);
+                    // Use post with try-catch for Android 14+ compatibility
+                    postConnectionEvent(false);
                 }catch (Exception e){
                     UIUtils.toast(""+e.getMessage());
+                    Log.e(TAG, "Error posting connection interrupt event: " + e.getMessage());
                 }
-
                 break;
 
             default:
-                    UIUtils.toast(""+code);
+                UIUtils.toast(""+code);
                 break;
             case POSConnect.SEND_FAIL:
                 UIUtils.toast(R.string.send_failed);
                 break;
-
         }
     };
-
-
 
     private static SharedPreferencesManager sharedPreferencesManager;
     public IDeviceConnection curConnect ;
@@ -85,25 +81,43 @@ public class MyApp extends Application {
         curConnect.connect(macAddress, connectListener);
     }
 
-
+    // Helper method to safely post connection events for Android 14+ compatibility
+    private void postConnectionEvent(boolean isConnected) {
+        try {
+            LiveEventBus.get(Constants.EVENT_CONNECT_STATUS).post(isConnected);
+        } catch (SecurityException e) {
+            Log.e(TAG, "SecurityException when posting LiveEventBus event (Android 14+ compatibility issue): " + e.getMessage());
+            // For Android 14+, you might want to use alternative event mechanism here
+            // or handle the connection status differently
+        } catch (Exception e) {
+            Log.e(TAG, "Exception when posting LiveEventBus event: " + e.getMessage());
+        }
+    }
 
     @Override
     public void onCreate() {
         super.onCreate();
         app = this;
-        FirebaseApp.initializeApp(this);
+
+        try {
+            FirebaseApp.initializeApp(this);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to initialize Firebase: " + e.getMessage());
+        }
+
         // Initialize the SharedPreferencesManager with the application context
-        sharedPreferencesManager =   SharedPreferencesManager.getInstance(getApplicationContext());
+        sharedPreferencesManager = SharedPreferencesManager.getInstance(getApplicationContext());
 
-
-        POSConnect.init(this);
-     }
+        try {
+            POSConnect.init(this);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to initialize POSConnect: " + e.getMessage());
+        }
+    }
 
     public static SharedPreferencesManager getSharedPreferencesManager() {
         return sharedPreferencesManager;
     }
-
-
 
     private static MyApp app;
 

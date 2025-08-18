@@ -125,7 +125,7 @@ public class ThermalPrintService extends PrintService {
 //        Handler timeoutHandler = new Handler(Looper.getMainLooper());
 //        Runnable timeoutRunnable = () -> {
 //            Log.w(TAG, "Firebase Remote Config timeout, proceeding with printing");
-            printNow(printJob);
+        printNow(printJob);
 //        };
 
 //        timeoutHandler.postDelayed(timeoutRunnable, 5000); // 5 second timeout
@@ -162,34 +162,86 @@ public class ThermalPrintService extends PrintService {
 
     private void printNow(PrintJob printJob) {
         if (printJob.isQueued()) {
-           printJob.start();
-       }
-
+            printJob.start();
+        }
 
         Log.d(TAG, "handleHandleQueuedPrintJob: print job started");
         SharedPreferencesManager sharedPreferencesManager = MyApp.getSharedPreferencesManager();
 
         final PrintJobInfo info = printJob.getInfo();
 
-        final File file = new File(getFilesDir(), info.getLabel() + ".pdf");
+        // Sanitize the filename to remove invalid characters for Android 14+
+        String sanitizedLabel = info.getLabel()
+                .replaceAll("[/\\\\:*?\"<>|]", "_")  // Replace invalid filename characters
+                .replaceAll("\\s+", "_")             // Replace spaces with underscores
+                .trim();
+
+        // Ensure we have a valid filename
+        if (sanitizedLabel.isEmpty()) {
+            sanitizedLabel = "print_job_" + System.currentTimeMillis();
+        }
+
+        // Create a more robust file path that works with Android 14+
+        final File file = new File(getFilesDir(), sanitizedLabel + ".pdf");
+
+        Log.d(TAG, "Original label: " + info.getLabel());
+        Log.d(TAG, "Sanitized filename: " + sanitizedLabel + ".pdf");
+        Log.d(TAG, "Full file path: " + file.getAbsolutePath());
+
+        // Ensure the files directory exists
+        if (!getFilesDir().exists()) {
+            boolean created = getFilesDir().mkdirs();
+            Log.d(TAG, "Files directory created: " + created);
+        }
 
         InputStream in = null;
         FileOutputStream out = null;
 
         try {
-            in = new FileInputStream(printJob.getDocument().getData().getFileDescriptor());
+            // Use ParcelFileDescriptor for better compatibility with Android 14+
+            android.os.ParcelFileDescriptor pfd = printJob.getDocument().getData();
+            if (pfd == null) {
+                printJob.fail("Unable to access document data");
+                return;
+            }
+
+            in = new FileInputStream(pfd.getFileDescriptor());
             out = new FileOutputStream(file);
 
-            byte[] buffer = new byte[1024];
+            byte[] buffer = new byte[8192]; // Increased buffer size for better performance
             int read;
             while ((read = in.read(buffer)) != -1) {
                 out.write(buffer, 0, read);
             }
-            in.close();
 
+            // Ensure all data is written
             out.flush();
-            out.close();
+            out.getFD().sync(); // Force sync to storage
 
+        } catch (IOException ioe) {
+            Log.e(LOG_TAG, "handleHandleQueuedPrintJob:error " + file.getAbsolutePath() + ": " + ioe.getMessage());
+            printJob.fail("IO Error: " + ioe.getMessage());
+            return;
+        } finally {
+            // Properly close streams
+            try {
+                if (in != null) in.close();
+                if (out != null) out.close();
+            } catch (IOException e) {
+                Log.e(TAG, "Error closing streams: " + e.getMessage());
+            }
+        }
+
+        // Verify file was created successfully
+        if (!file.exists() || file.length() == 0) {
+            Log.e(TAG, "Failed to create PDF file or file is empty: " + file.getAbsolutePath());
+            printJob.fail("Failed to create PDF file");
+            return;
+        }
+
+        Log.d(TAG, "PDF file created successfully: " + file.getAbsolutePath() + ", size: " + file.length());
+
+        try {
             // Check if connection is still valid
             if (MyApp.get().curConnect == null) {
                 printJob.fail("Printer connection lost");
@@ -270,116 +322,126 @@ public class ThermalPrintService extends PrintService {
 
             Log.d(TAG, "printNow: ....");
 
-        } catch (IOException ioe) {
-            Log.d(LOG_TAG, "handleHandleQueuedPrintJob:error " + ioe.getMessage());
-            printJob.fail("IO Error: " + ioe.getMessage());
+        } catch (Exception e) {
+            Log.e(LOG_TAG, "Printing error: " + e.getMessage());
+            printJob.fail("Printing Error: " + e.getMessage());
+        } finally {
+            // Clean up the temporary file
+            try {
+                if (file.exists()) {
+                    boolean deleted = file.delete();
+                    Log.d(TAG, "Temporary PDF file deleted: " + deleted);
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Failed to delete temporary file: " + e.getMessage());
+            }
         }
     }
 
 
     private final class PrintHandler extends Handler {
-            static final int MSG_HANDLE_PRINT_JOB = 3;
+        static final int MSG_HANDLE_PRINT_JOB = 3;
 
-            public PrintHandler(Looper looper) {
-                super(looper);
-            }
-
-            @Override
-            public void handleMessage(Message message) {
-                Log.d(LOG_TAG, "handleMessage: " + message.toString());
-                switch (message.what) {
-                    case MSG_HANDLE_PRINT_JOB: {
-                        PrintJob printJob = (PrintJob) message.obj;
-                        handleHandleQueuedPrintJob(printJob);
-                    }
-                    break;
-                }
-            }
+        public PrintHandler(Looper looper) {
+            super(looper);
         }
 
-
-        class ThermalPrinterDiscoverySession extends PrinterDiscoverySession {
-
-            private PrinterInfo printerInfo;
-
-
-            ThermalPrinterDiscoverySession(PrinterInfo printerInfo) {
-
-
-                PrintAttributes.MediaSize mediaSize58 = new PrintAttributes.MediaSize("58M", "58M", 3200, 8800);
-
-                PrintAttributes.MediaSize mediaSize80 = new PrintAttributes.MediaSize("80M", "80M", 4413, 12137);
-
-                PrintAttributes.MediaSize mediaSize104 = new PrintAttributes.MediaSize("104M", "104M", 5737, 15779);
-
-                PrintAttributes.MediaSize mediaSize ;
-
-                SharedPreferencesManager sharedPreferencesManager = MyApp.getSharedPreferencesManager();
-
-
-                if (sharedPreferencesManager.getPrintSize().equals(mm50)) {
-
-                    mediaSize = mediaSize58;
-                }else if (sharedPreferencesManager.getPrintSize().equals(mm80)){
-
-                    mediaSize = mediaSize80;
-                }else {
-
-                    mediaSize = mediaSize104;
+        @Override
+        public void handleMessage(Message message) {
+            Log.d(LOG_TAG, "handleMessage: " + message.toString());
+            switch (message.what) {
+                case MSG_HANDLE_PRINT_JOB: {
+                    PrintJob printJob = (PrintJob) message.obj;
+                    handleHandleQueuedPrintJob(printJob);
                 }
-
-                PrinterCapabilitiesInfo capabilities =
-                        new PrinterCapabilitiesInfo.Builder(printerInfo.getId())
-                                .addMediaSize(mediaSize, true)
-//                      .addMediaSize(  mediaSize58Large, false)
-                                .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
-                                .addResolution(new PrintAttributes.Resolution("R2", "200X200", 200, 200), true)
-                                .setColorModes(PrintAttributes.COLOR_MODE_MONOCHROME, PrintAttributes.COLOR_MODE_MONOCHROME).build();
-
-                this.printerInfo = new PrinterInfo.Builder(printerInfo)
-                        .setCapabilities(capabilities)
-                        .build();
-
+                break;
             }
-
-
-            @Override
-            public void onStartPrinterDiscovery(List<PrinterId> priorityList) {
-
-                List<PrinterInfo> printers = new ArrayList<PrinterInfo>();
-                printers.add(printerInfo);
-                addPrinters(printers);
-                Log.d(TAG, "onStartPrinterDiscovery: "+printerInfo.getId().toString());
-            }
-
-            @Override
-            public void onStopPrinterDiscovery() {
-                Log.d(TAG, "onStopPrinterDiscovery: ");
-            }
-
-            @Override
-            public void onValidatePrinters(List<PrinterId> printerIds) {
-                Log.d(TAG, "onValidatePrinters: ");
-            }
-
-            @Override
-            public void onStartPrinterStateTracking(PrinterId printerId) {
-
-
-                Log.d(TAG, "onStartPrinterStateTrackinggggggggg: "+printerId.toString());
-            }
-
-            @Override
-            public void onStopPrinterStateTracking(PrinterId printerId) {
-                Log.d(TAG, "onStopPrinterStateTracking: ببببب"+printerId.toString());
-            }
-
-            @Override
-            public void onDestroy() {
-                Log.d(TAG, "onDestroy: ");
-            }
-
-            private final String TAG = "ThermalPrinterDiscovery";
         }
-
     }
+
+
+    class ThermalPrinterDiscoverySession extends PrinterDiscoverySession {
+
+        private PrinterInfo printerInfo;
+
+
+        ThermalPrinterDiscoverySession(PrinterInfo printerInfo) {
+
+
+            PrintAttributes.MediaSize mediaSize58 = new PrintAttributes.MediaSize("58M", "58M", 3200, 8800);
+
+            PrintAttributes.MediaSize mediaSize80 = new PrintAttributes.MediaSize("80M", "80M", 4413, 12137);
+
+            PrintAttributes.MediaSize mediaSize104 = new PrintAttributes.MediaSize("104M", "104M", 5737, 15779);
+
+            PrintAttributes.MediaSize mediaSize ;
+
+            SharedPreferencesManager sharedPreferencesManager = MyApp.getSharedPreferencesManager();
+
+
+            if (sharedPreferencesManager.getPrintSize().equals(mm50)) {
+
+                mediaSize = mediaSize58;
+            }else if (sharedPreferencesManager.getPrintSize().equals(mm80)){
+
+                mediaSize = mediaSize80;
+            }else {
+
+                mediaSize = mediaSize104;
+            }
+
+            PrinterCapabilitiesInfo capabilities =
+                    new PrinterCapabilitiesInfo.Builder(printerInfo.getId())
+                            .addMediaSize(mediaSize, true)
+//                      .addMediaSize(  mediaSize58Large, false)
+                            .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
+                            .addResolution(new PrintAttributes.Resolution("R2", "200X200", 200, 200), true)
+                            .setColorModes(PrintAttributes.COLOR_MODE_MONOCHROME, PrintAttributes.COLOR_MODE_MONOCHROME).build();
+
+            this.printerInfo = new PrinterInfo.Builder(printerInfo)
+                    .setCapabilities(capabilities)
+                    .build();
+
+        }
+
+
+        @Override
+        public void onStartPrinterDiscovery(List<PrinterId> priorityList) {
+
+            List<PrinterInfo> printers = new ArrayList<PrinterInfo>();
+            printers.add(printerInfo);
+            addPrinters(printers);
+            Log.d(TAG, "onStartPrinterDiscovery: "+printerInfo.getId().toString());
+        }
+
+        @Override
+        public void onStopPrinterDiscovery() {
+            Log.d(TAG, "onStopPrinterDiscovery: ");
+        }
+
+        @Override
+        public void onValidatePrinters(List<PrinterId> printerIds) {
+            Log.d(TAG, "onValidatePrinters: ");
+        }
+
+        @Override
+        public void onStartPrinterStateTracking(PrinterId printerId) {
+
+
+            Log.d(TAG, "onStartPrinterStateTrackinggggggggg: "+printerId.toString());
+        }
+
+        @Override
+        public void onStopPrinterStateTracking(PrinterId printerId) {
+            Log.d(TAG, "onStopPrinterStateTracking: ببببب"+printerId.toString());
+        }
+
+        @Override
+        public void onDestroy() {
+            Log.d(TAG, "onDestroy: ");
+        }
+
+        private final String TAG = "ThermalPrinterDiscovery";
+    }
+
+}
