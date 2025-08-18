@@ -2,6 +2,8 @@ package com.albadr.printer;
 
 import android.app.Application;
 import android.content.Context;
+import android.util.Log;
+import android.widget.Toast;
 
 import com.albadr.printer.util.Constants;
 import com.albadr.printer.util.SharedPreferencesManager;
@@ -18,7 +20,11 @@ import net.posprinter.POSConnect;
 
 public class MyApp extends Application {
 
+    private static final String TAG = "MyApp";
     private IConnectListener connectListener = (code, s, s1) -> {
+
+
+        Log.d(TAG, "codeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"+code);
         switch (code) {
 
 
@@ -59,9 +65,9 @@ public class MyApp extends Application {
             default:
                     UIUtils.toast(""+code);
                 break;
-//            case POSConnect.SEND_FAIL:
-//                UIUtils.toast(R.string.send_failed);
-//                break;
+            case POSConnect.SEND_FAIL:
+                UIUtils.toast(R.string.send_failed);
+                break;
 
         }
     };
@@ -101,9 +107,6 @@ public class MyApp extends Application {
 
     private static MyApp app;
 
-    public static void initialize(MyApp instance) {
-        app = instance;
-    }
 
     public static MyApp get() {
         return app;

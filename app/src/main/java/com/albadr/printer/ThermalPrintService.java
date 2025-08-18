@@ -5,16 +5,10 @@ import static com.albadr.printer.util.Constants.PRINTER_500;
 import static com.albadr.printer.util.Constants.mm50;
 import static com.albadr.printer.util.Constants.mm80;
 
-import android.Manifest;
-import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothSocket;
+
 import android.content.Context;
-import android.content.Intent;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.drawable.Drawable;
+
 import android.net.ConnectivityManager;
 import android.os.Handler;
 import android.os.Looper;
@@ -28,22 +22,12 @@ import android.printservice.PrintJob;
 import android.printservice.PrintService;
 import android.printservice.PrinterDiscoverySession;
 import android.util.Log;
-
-
 import androidx.annotation.Nullable;
-import androidx.core.app.ActivityCompat;
-
-import com.albadr.printer.util.Constants;
-import com.albadr.printer.util.PrintBitmap;
 import com.albadr.printer.util.PrintUtils;
 import com.albadr.printer.util.SharedPreferencesManager;
 import com.albadr.printer.util.UIUtils;
-import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig;
 import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings;
-import com.jeremyliao.liveeventbus.LiveEventBus;
-import com.zj.btsdk.BluetoothService;
-import com.albadr.printer.BuildConfig;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -52,16 +36,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
-import java.util.concurrent.Executor;
 
-import net.posprinter.IDeviceConnection;
-import net.posprinter.POSConnect;
 import net.posprinter.POSConst;
 import net.posprinter.POSPrinter;
-import net.posprinter.TSPLConst;
-import net.posprinter.TSPLPrinter;
-import net.posprinter.model.AlgorithmType;
 public class ThermalPrintService extends PrintService {
 
     private static final String LOG_TAG = "ThermalPrintService";
@@ -117,77 +94,68 @@ public class ThermalPrintService extends PrintService {
 
     private void handleHandleQueuedPrintJob(final PrintJob printJob) {
 
-
-//        int numberPrinting = sharedPreferencesManager.getNumberPrinting();
-//
-//        if (numberPrinting == 0){
-//
-//            return;
-//        }else {
-//            numberPrinting = numberPrinting - 1;
-//            sharedPreferencesManager.saveNumberPrinting(numberPrinting);
-//        }
-
-
         if (MyApp.get().curConnect == null) {
-
-
             UIUtils.toast("من فضلك اعد المحاولة مرة اخري");
 
-            // Optionally cancel the print job or try to reconnect
-//            printJob.cancel();
-
             SharedPreferencesManager sharedPreferencesManager = MyApp.getSharedPreferencesManager();
-
             MyApp.get().connectBt(sharedPreferencesManager.getPrintAddress());
 
-
-
-
-        }
-
-
-
-
-        if (!isNetworkConnected()) {
+            // Cancel the print job if no connection
             printJob.cancel();
-
+            Log.d(TAG, "Printer connection is null, cancelling print job");
             return;
-            
         }
 
-        FirebaseRemoteConfig mFirebaseRemoteConfig = FirebaseRemoteConfig.getInstance();
-        FirebaseRemoteConfigSettings configSettings = new FirebaseRemoteConfigSettings.Builder()
-                .setMinimumFetchIntervalInSeconds(3600)
-                .build();
+//        if (!isNetworkConnected()) {
+//            // If no network, proceed with printing anyway
+//            Log.d(TAG, "No network connection, proceeding with printing");
+//            printNow(printJob);
+//            return;
+//        }
 
-        mFirebaseRemoteConfig.setConfigSettingsAsync(configSettings);
-        mFirebaseRemoteConfig.setDefaultsAsync(R.xml.remote_config_defaults);
-        mFirebaseRemoteConfig.fetchAndActivate()
-                .addOnCompleteListener( task -> {
-                    if (task.isSuccessful()) {
-                        long version = mFirebaseRemoteConfig.getAll().get("version").asLong();
+//        FirebaseRemoteConfig mFirebaseRemoteConfig = FirebaseRemoteConfig.getInstance();
+//        FirebaseRemoteConfigSettings configSettings = new FirebaseRemoteConfigSettings.Builder()
+//                .setMinimumFetchIntervalInSeconds(3600)
+//                .build();
 
-                         int versionCode = BuildConfig.VERSION_CODE;
+//        mFirebaseRemoteConfig.setConfigSettingsAsync(configSettings);
+//        mFirebaseRemoteConfig.setDefaultsAsync(R.xml.remote_config_defaults);
 
+        // Add timeout for Firebase Remote Config
+//        Handler timeoutHandler = new Handler(Looper.getMainLooper());
+//        Runnable timeoutRunnable = () -> {
+//            Log.w(TAG, "Firebase Remote Config timeout, proceeding with printing");
+            printNow(printJob);
+//        };
 
-                        Log.d(TAG, "handleHandleQueuedPrintJob: "+versionCode);
-                        Log.d(TAG, "handleHandleQueuedPrintJob: "+version);
-                        if (versionCode != version) {
-                            printJob.cancel();
+//        timeoutHandler.postDelayed(timeoutRunnable, 5000); // 5 second timeout
 
-                        }else {
-                            printNow(printJob);
-                            
-                        }
-
-                    }  
-
-                });
-
-
-
-
+//        mFirebaseRemoteConfig.fetchAndActivate()
+//                .addOnCompleteListener( task -> {
+//                    timeoutHandler.removeCallbacks(timeoutRunnable); // Cancel timeout
+//
+//                    if (task.isSuccessful()) {
+//                        try {
+//                            long version = mFirebaseRemoteConfig.getAll().get("version").asLong();
+//                            int versionCode = BuildConfig.VERSION_CODE;
+//
+//                            Log.d(TAG, "handleHandleQueuedPrintJob: "+versionCode);
+//                            Log.d(TAG, "handleHandleQueuedPrintJob: "+version);
+//                            if (versionCode != version) {
+//                                printJob.cancel();
+//                            }else {
+//                                printNow(printJob);
+//                            }
+//                        } catch (Exception e) {
+//                            Log.e(TAG, "Error parsing version from Remote Config: " + e.getMessage());
+//                            printNow(printJob); // Proceed with printing on error
+//                        }
+//                    } else {
+//                        // Handle Firebase Remote Config failure - proceed with printing
+//                        Log.e(TAG, "Firebase Remote Config fetch failed, proceeding with printing");
+//                        printNow(printJob);
+//                    }
+//                });
     }
 
     private static final String TAG = "ThermalPrintService";
@@ -198,13 +166,12 @@ public class ThermalPrintService extends PrintService {
        }
 
 
-
+        Log.d(TAG, "handleHandleQueuedPrintJob: print job started");
         SharedPreferencesManager sharedPreferencesManager = MyApp.getSharedPreferencesManager();
 
         final PrintJobInfo info = printJob.getInfo();
 
         final File file = new File(getFilesDir(), info.getLabel() + ".pdf");
-
 
         InputStream in = null;
         FileOutputStream out = null;
@@ -223,54 +190,89 @@ public class ThermalPrintService extends PrintService {
             out.flush();
             out.close();
 
-
+            // Check if connection is still valid
+            if (MyApp.get().curConnect == null) {
+                printJob.fail("Printer connection lost");
+                return;
+            }
 
             POSPrinter printerPos = new POSPrinter(MyApp.get().curConnect);
 
-
-
-
-
             ArrayList<Bitmap> bitmaps = PrintUtils.pdfToBitmap(file);
 
+            if (bitmaps == null || bitmaps.isEmpty()) {
+                printJob.fail("Failed to convert PDF to bitmap");
+                return;
+            }
 
-            for (int i = 0; i < bitmaps.size(); i++) {
+            boolean printingSuccessful = true;
 
+            try {
+                // Initialize printer once before printing all pages
+                printerPos.initializePrinter();
+                // Add a delay after initialization
+                Thread.sleep(200);
 
-                int mWidth;
-                if (sharedPreferencesManager.getPrintSize().equals(mm50)) {
+                // Wake up printer in case it's in sleep mode
+                printerPos.feedLine();
+                Thread.sleep(100);
 
-                    mWidth =  PRINTER_390;
+                for (int i = 0; i < bitmaps.size(); i++) {
 
-                }else {
+                    int mWidth;
+                    if (sharedPreferencesManager.getPrintSize().equals(mm50)) {
+                        mWidth =  PRINTER_390;
+                    }else {
+                        mWidth=  PRINTER_500;
+                    }
 
-                    mWidth=  PRINTER_500;
+                    try {
+                        // Print bitmap without reinitializing printer for each page
+                        printerPos.printBitmap(bitmaps.get(i), POSConst.ALIGNMENT_CENTER, mWidth)
+                                .feedLine();
+
+                        // Add a small delay to ensure data is processed
+                        Thread.sleep(100);
+
+                        // Only cut after the last page
+                        if (i == bitmaps.size() - 1) {
+                            printerPos.cutHalfAndFeed(1);
+                            // Final delay to ensure cut command is processed
+                            Thread.sleep(200);
+
+                            // Force print by sending additional feed lines to trigger printing
+                            printerPos.feedLine(3);
+                            Thread.sleep(100);
+                        }
+
+                        Log.d(TAG, "Successfully printed page " + (i + 1) + " of " + bitmaps.size());
+                    } catch (Exception e) {
+                        Log.e(TAG, "printPicCode error on page " + (i + 1) + ": " + e.getMessage());
+                        printingSuccessful = false;
+                        break;
+                    }
                 }
-
-
-                try {
-                    printerPos.initializePrinter()
-                            .printBitmap(bitmaps.get(i), POSConst.ALIGNMENT_CENTER, mWidth)
-                            .feedLine()
-                            .cutHalfAndFeed(1);
-                } catch (Exception e) {
-
-                    Log.d(TAG, "printPicCode: "+e.getMessage());
-
-
-                }
-
-
-
+            } catch (Exception e) {
+                Log.d(TAG, "Printer initialization failed: " + e.getMessage());
+                printingSuccessful = false;
             }
 
             Log.d("TAG", "handleHandleQueuedPrintJob: file path " + file.getPath());
 
-           printJob.cancel();
+            // Mark the print job as complete or failed
+            if (printingSuccessful) {
+                printJob.complete();
+                Log.d(TAG, "Print job completed successfully");
+            } else {
+                printJob.fail("Printing failed");
+                Log.d(TAG, "Print job failed");
+            }
 
+            Log.d(TAG, "printNow: ....");
 
         } catch (IOException ioe) {
             Log.d(LOG_TAG, "handleHandleQueuedPrintJob:error " + ioe.getMessage());
+            printJob.fail("IO Error: " + ioe.getMessage());
         }
     }
 
@@ -343,10 +345,11 @@ public class ThermalPrintService extends PrintService {
 
             @Override
             public void onStartPrinterDiscovery(List<PrinterId> priorityList) {
-                Log.d(TAG, "onStartPrinterDiscovery: ");
+
                 List<PrinterInfo> printers = new ArrayList<PrinterInfo>();
                 printers.add(printerInfo);
                 addPrinters(printers);
+                Log.d(TAG, "onStartPrinterDiscovery: "+printerInfo.getId().toString());
             }
 
             @Override
@@ -363,12 +366,12 @@ public class ThermalPrintService extends PrintService {
             public void onStartPrinterStateTracking(PrinterId printerId) {
 
 
-                Log.d(TAG, "onStartPrinterStateTracking: ");
+                Log.d(TAG, "onStartPrinterStateTrackinggggggggg: "+printerId.toString());
             }
 
             @Override
             public void onStopPrinterStateTracking(PrinterId printerId) {
-                Log.d(TAG, "onStopPrinterStateTracking: ");
+                Log.d(TAG, "onStopPrinterStateTracking: ببببب"+printerId.toString());
             }
 
             @Override
@@ -380,8 +383,3 @@ public class ThermalPrintService extends PrintService {
         }
 
     }
-
-
-
-
-

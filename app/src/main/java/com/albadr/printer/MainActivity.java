@@ -8,7 +8,6 @@ import android.Manifest;
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -19,8 +18,6 @@ import android.os.Handler;
 import android.os.Message;
 
 import android.util.Log;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -35,14 +32,9 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.app.ActivityCompat;
-
-
-import com.albadr.printer.util.PrintBitmap;
 import com.albadr.printer.util.PrintUtils;
 import com.albadr.printer.util.SharedPreferencesManager;
 import com.albadr.printer.util.UIUtils;
-import com.google.android.gms.tasks.OnCompleteListener;
-import com.google.android.gms.tasks.Task;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.firebase.remoteconfig.ConfigUpdate;
 import com.google.firebase.remoteconfig.ConfigUpdateListener;
@@ -196,7 +188,7 @@ public class MainActivity extends AppCompatActivity {
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                Log.d("TAG", "onClick: " + isConnected);
+                Log.d("TAG", "onClick:1213123 " + isConnected);
                 if (isConnected) {
                     print();
 
@@ -441,18 +433,46 @@ public class MainActivity extends AppCompatActivity {
 
     private void print() {
 
-        POSPrinter printerPos = new POSPrinter(MyApp.get().curConnect);
-        String str = "Welcome to  Albadr systems \n,this is print test content!\n";
+        try {
+            POSPrinter printerPos = new POSPrinter(MyApp.get().curConnect);
+            Log.d(TAG, "print: 1cccc"+MyApp.get().curConnect.isConnect());
 
-        printerPos. printString(str)
-                .printText(
-                        "Albadr Printer!\n",
-                        POSConst.ALIGNMENT_CENTER,
-                        POSConst.FNT_BOLD | POSConst.FNT_UNDERLINE,
-                        POSConst.TXT_1WIDTH | POSConst.TXT_2HEIGHT
-                ).feedLine(5)
+            // تهيئة الطابعة
+            printerPos.initializePrinter();
+            Thread.sleep(200); // تأخير بعد التهيئة
 
-                .cutHalfAndFeed(1);
+            // إيقاظ الطابعة في حالة كانت في وضع السكون
+            printerPos.feedLine();
+            Thread.sleep(100);
+
+            String str = "Welcome to  Albadr systems \n,this is print test content!\n";
+            Log.d(TAG, "print: 2");
+
+            // طباعة النص مع التحكم في التنسيق
+            printerPos.printString(str)
+                    .printText(
+                            "Albadr Printer!\n",
+                            POSConst.ALIGNMENT_CENTER,
+                            POSConst.FNT_BOLD | POSConst.FNT_UNDERLINE,
+                            POSConst.TXT_1WIDTH | POSConst.TXT_2HEIGHT
+                    ).feedLine(5);
+
+            // تأخير لضمان معالجة أمر القطع
+            Thread.sleep(200);
+
+            // إجبار الطباعة عن طريق إرسال خطوط تغذية إضافية لتحفيز الطباعة
+            printerPos.feedLine(3);
+            Thread.sleep(100);
+
+            Log.d(TAG, "print: 3");
+        }catch (Exception e) {
+            Log.e(TAG, "print: ", e);
+            UIUtils.toast("Error: " + e.getMessage());
+
+            Log.d(TAG, "print: 4");
+            return;
+        }
+
     }
 
 
