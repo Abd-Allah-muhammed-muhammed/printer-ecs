@@ -7,16 +7,16 @@ plugins {
 
 android {
     namespace = "com.albadr.printer"
-    compileSdk = 34
+    compileSdk = 35
     buildFeatures {
         buildConfig = true
     }
     defaultConfig {
         applicationId = "com.albadr.printer"
         minSdk = 24
-        targetSdk = 34
-        versionCode = 8
-        versionName = "8.0.0"
+        targetSdk = 35
+        versionCode = 10
+        versionName = "10.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -37,15 +37,12 @@ android {
         targetCompatibility = JavaVersion.VERSION_1_8
     }
 
-
-
 }
 
 
 dependencies {
 
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))
-    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.aar"))))
     implementation(files("libs/btsdk.jar"))
     implementation(files("libs/PdfViewer.jar"))
 
@@ -60,7 +57,7 @@ dependencies {
      implementation ("com.github.neo-turak:LiveEventBus:1.8.1")
     implementation("io.reactivex.rxjava3:rxjava:3.1.5")
 
-    implementation(files("libs/printer-lib-3.1.6.aar"))
+    implementation("com.github.DantSu:ESCPOS-ThermalPrinter-Android:3.3.0")
 
 
     testImplementation("junit:junit:4.13.2")

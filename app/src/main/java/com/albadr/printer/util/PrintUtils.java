@@ -69,9 +69,14 @@ public class PrintUtils {
 
                   bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
 
-
+                // Fill with white before rendering so transparent pixels become white
+                Canvas canvas = new Canvas(bitmap);
+                canvas.drawColor(Color.WHITE);
 
                 page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+
+                // Trim white space from the bottom of the bitmap
+                bitmap = trimWhiteSpace(bitmap);
 
                 bitmaps.add(bitmap);
 
@@ -91,6 +96,68 @@ public class PrintUtils {
 
         return bitmaps;
 
+    }
+
+    /**
+     * Trims white space from the bottom of a bitmap.
+     * Scans from the bottom up to find the last row that contains non-white pixels,
+     * then crops the bitmap to that height plus a small padding.
+     */
+    private static Bitmap trimWhiteSpace(Bitmap bitmap) {
+        int width = bitmap.getWidth();
+        int height = bitmap.getHeight();
+
+        // Minimum height to avoid returning an empty bitmap
+        int minHeight = 50;
+        // Padding to add below the last content row (in pixels)
+        int bottomPadding = 30;
+
+        // Threshold: pixels with all RGB channels above this value are considered "white"
+        int whiteThreshold = 250;
+
+        // Scan rows from bottom to top to find the last non-white row
+        int lastContentRow = minHeight;
+        int[] rowPixels = new int[width];
+
+        for (int y = height - 1; y >= minHeight; y--) {
+            bitmap.getPixels(rowPixels, 0, width, 0, y, width, 1);
+
+            boolean hasContent = false;
+            for (int x = 0; x < width; x++) {
+                int pixel = rowPixels[x];
+                int r = Color.red(pixel);
+                int g = Color.green(pixel);
+                int b = Color.blue(pixel);
+                int a = Color.alpha(pixel);
+
+                // Check if pixel is non-white (and not fully transparent)
+                if (a > 20 && (r < whiteThreshold || g < whiteThreshold || b < whiteThreshold)) {
+                    hasContent = true;
+                    break;
+                }
+            }
+
+            if (hasContent) {
+                lastContentRow = y;
+                break;
+            }
+        }
+
+        // Calculate the new height with padding
+        int newHeight = Math.min(lastContentRow + bottomPadding, height);
+
+        // Only trim if we can save at least 10% of the height
+        if (newHeight < height * 0.9) {
+            Log.d(TAG, "trimWhiteSpace: trimmed from " + height + " to " + newHeight + " pixels");
+            Bitmap trimmedBitmap = Bitmap.createBitmap(bitmap, 0, 0, width, newHeight);
+            // Recycle the original bitmap to free memory
+            if (trimmedBitmap != bitmap) {
+                bitmap.recycle();
+            }
+            return trimmedBitmap;
+        }
+
+        return bitmap;
     }
 
     private static final String TAG = "PrintUtils";

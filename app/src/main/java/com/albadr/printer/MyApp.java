@@ -1,6 +1,9 @@
 package com.albadr.printer;
 
+import android.annotation.SuppressLint;
 import android.app.Application;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.util.Log;
 import android.widget.Toast;
@@ -8,77 +11,77 @@ import android.widget.Toast;
 import com.albadr.printer.util.Constants;
 import com.albadr.printer.util.SharedPreferencesManager;
 import com.albadr.printer.util.UIUtils;
+import com.dantsu.escposprinter.connection.bluetooth.BluetoothConnection;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig;
 import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings;
 import com.jeremyliao.liveeventbus.LiveEventBus;
 
-import net.posprinter.IConnectListener;
-import net.posprinter.IDeviceConnection;
-import net.posprinter.POSConnect;
-
 
 public class MyApp extends Application {
 
     private static final String TAG = "MyApp";
-    private IConnectListener connectListener = (code, s, s1) -> {
 
-        Log.d(TAG, "codeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"+code);
-        switch (code) {
+    // Store the MAC address for creating connections when needed
+    private String connectedMacAddress = null;
+    private boolean isConnected = false;
 
-            case POSConnect.CONNECT_SUCCESS:
-                try {
-                    UIUtils.toast(getString(R.string.con_success));
-                    sharedPreferencesManager.savePrintAddress(s);
-                    MainActivity.isConnected = true;
-                    // Use post with try-catch for Android 14+ compatibility
-                    postConnectionEvent(true);
-                }catch (Exception e){
-                    UIUtils.toast(""+e.getMessage());
-                    Log.e(TAG, "Error posting connection success event: " + e.getMessage());
-                }
-                break;
-
-            case POSConnect.CONNECT_FAIL:
-                try {
-                    UIUtils.toast(R.string.con_failed);
-                    // Use post with try-catch for Android 14+ compatibility
-                    postConnectionEvent(false);
-                }catch (Exception e){
-                    UIUtils.toast(""+e.getMessage());
-                    Log.e(TAG, "Error posting connection fail event: " + e.getMessage());
-                }
-                break;
-
-            case POSConnect.CONNECT_INTERRUPT:
-                try {
-                    UIUtils.toast(R.string.con_has_disconnect);
-                    // Use post with try-catch for Android 14+ compatibility
-                    postConnectionEvent(false);
-                }catch (Exception e){
-                    UIUtils.toast(""+e.getMessage());
-                    Log.e(TAG, "Error posting connection interrupt event: " + e.getMessage());
-                }
-                break;
-
-            default:
-                UIUtils.toast(""+code);
-                break;
-            case POSConnect.SEND_FAIL:
-                UIUtils.toast(R.string.send_failed);
-                break;
+    /**
+     * Creates a new BluetoothConnection for the stored MAC address.
+     * Each print job should create its own connection.
+     */
+    @SuppressLint("MissingPermission")
+    public BluetoothConnection createBluetoothConnection() {
+        if (connectedMacAddress == null || connectedMacAddress.isEmpty()) {
+            return null;
         }
-    };
+        try {
+            BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
+            if (adapter == null) return null;
+            BluetoothDevice device = adapter.getRemoteDevice(connectedMacAddress);
+            return new BluetoothConnection(device);
+        } catch (Exception e) {
+            Log.e(TAG, "Error creating BluetoothConnection: " + e.getMessage());
+            return null;
+        }
+    }
 
-    private static SharedPreferencesManager sharedPreferencesManager;
-    public IDeviceConnection curConnect ;
+    /**
+     * Returns whether we have a stored printer address.
+     */
+    public boolean isPrinterConfigured() {
+        return connectedMacAddress != null && !connectedMacAddress.isEmpty();
+    }
 
     public void connectBt(String macAddress) {
-        if (curConnect != null) {
-            curConnect.close();
-        }
-        curConnect = POSConnect.createDevice(POSConnect.DEVICE_TYPE_BLUETOOTH);
-        curConnect.connect(macAddress, connectListener);
+        connectedMacAddress = macAddress;
+        // Test the connection by trying to connect
+        new Thread(() -> {
+            try {
+                BluetoothConnection connection = createBluetoothConnection();
+                if (connection != null) {
+                    connection.connect();
+                    connection.disconnect();
+                    isConnected = true;
+                    sharedPreferencesManager.savePrintAddress(macAddress);
+                    MainActivity.isConnected = true;
+                    postConnectionEvent(true);
+                    android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+                    mainHandler.post(() -> UIUtils.toast(getString(R.string.con_success)));
+                } else {
+                    isConnected = false;
+                    postConnectionEvent(false);
+                    android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+                    mainHandler.post(() -> UIUtils.toast(R.string.con_failed));
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Bluetooth connection test failed: " + e.getMessage());
+                isConnected = false;
+                postConnectionEvent(false);
+                android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+                mainHandler.post(() -> UIUtils.toast(R.string.con_failed));
+            }
+        }).start();
     }
 
     // Helper method to safely post connection events for Android 14+ compatibility
@@ -87,8 +90,6 @@ public class MyApp extends Application {
             LiveEventBus.get(Constants.EVENT_CONNECT_STATUS).post(isConnected);
         } catch (SecurityException e) {
             Log.e(TAG, "SecurityException when posting LiveEventBus event (Android 14+ compatibility issue): " + e.getMessage());
-            // For Android 14+, you might want to use alternative event mechanism here
-            // or handle the connection status differently
         } catch (Exception e) {
             Log.e(TAG, "Exception when posting LiveEventBus event: " + e.getMessage());
         }
@@ -108,12 +109,14 @@ public class MyApp extends Application {
         // Initialize the SharedPreferencesManager with the application context
         sharedPreferencesManager = SharedPreferencesManager.getInstance(getApplicationContext());
 
-        try {
-            POSConnect.init(this);
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to initialize POSConnect: " + e.getMessage());
+        // Restore saved MAC address
+        String savedAddress = sharedPreferencesManager.getPrintAddress();
+        if (savedAddress != null && !savedAddress.isEmpty()) {
+            connectedMacAddress = savedAddress;
         }
     }
+
+    private static SharedPreferencesManager sharedPreferencesManager;
 
     public static SharedPreferencesManager getSharedPreferencesManager() {
         return sharedPreferencesManager;

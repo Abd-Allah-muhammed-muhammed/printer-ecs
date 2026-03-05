@@ -45,8 +45,8 @@ import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings;
 
 import com.zj.btsdk.BluetoothService;
 
-import net.posprinter.POSConst;
-import net.posprinter.POSPrinter;
+import com.dantsu.escposprinter.EscPosPrinter;
+import com.dantsu.escposprinter.connection.bluetooth.BluetoothConnection;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -189,7 +189,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 Log.d("TAG", "onClick:1213123 " + isConnected);
-                if (isConnected) {
+                if (isConnected || MyApp.get().isPrinterConfigured()) {
                     print();
 
                 } else {
@@ -291,7 +291,7 @@ public class MainActivity extends AppCompatActivity {
                         Log.d(TAG, "firebase: " + version);
                         Log.d(TAG, "firebase: " + versionCode);
                         if (versionCode != version) {
-                            showUpdateDialog();
+//                            showUpdateDialog();
                         } else {
                             li_update.setVisibility(View.GONE);
                             fab.setVisibility(View.VISIBLE);
@@ -434,37 +434,36 @@ public class MainActivity extends AppCompatActivity {
     private void print() {
 
         try {
-            POSPrinter printerPos = new POSPrinter(MyApp.get().curConnect);
-            Log.d(TAG, "print: 1cccc"+MyApp.get().curConnect.isConnect());
+            BluetoothConnection connection = MyApp.get().createBluetoothConnection();
+            if (connection == null) {
+                UIUtils.toast("Error: No printer connection");
+                return;
+            }
 
-            // تهيئة الطابعة
-            printerPos.initializePrinter();
-            Thread.sleep(200); // تأخير بعد التهيئة
+            float printerWidthMM;
+            int nbrCharsPerLine;
+            if (sharedPreferencesManager.getPrintSize().equals(mm50)) {
+                printerWidthMM = 48f;
+                nbrCharsPerLine = 32;
+            } else if (sharedPreferencesManager.getPrintSize().equals(mm80)) {
+                printerWidthMM = 72f;
+                nbrCharsPerLine = 42;
+            } else {
+                printerWidthMM = 96f;
+                nbrCharsPerLine = 56;
+            }
 
-            // إيقاظ الطابعة في حالة كانت في وضع السكون
-            printerPos.feedLine();
-            Thread.sleep(100);
+            EscPosPrinter printer = new EscPosPrinter(connection, 203, printerWidthMM, nbrCharsPerLine);
 
-            String str = "Welcome to  Albadr systems \n,this is print test content!\n";
-            Log.d(TAG, "print: 2");
+            printer.printFormattedTextAndCut(
+                    "[L]Welcome to  Albadr systems \n" +
+                    "[L],this is print test content!\n" +
+                    "[C]<font size='big'><b>Albadr Printer!</b></font>\n" +
+                    "\n\n\n\n\n\n\n\n\n\n",
+                    50f
+            );
 
-            // طباعة النص مع التحكم في التنسيق
-            printerPos.printString(str)
-                    .printText(
-                            "Albadr Printer!\n",
-                            POSConst.ALIGNMENT_CENTER,
-                            POSConst.FNT_BOLD | POSConst.FNT_UNDERLINE,
-                            POSConst.TXT_1WIDTH | POSConst.TXT_2HEIGHT
-                    ).feedLine(5);
-
-            // تأخير لضمان معالجة أمر القطع
-            Thread.sleep(200);
-
-            // إجبار الطباعة عن طريق إرسال خطوط تغذية إضافية لتحفيز الطباعة
-            printerPos.feedLine(3);
-            Thread.sleep(100);
-
-            Log.d(TAG, "print: 3");
+            Log.d(TAG, "print: test print completed");
         }catch (Exception e) {
             Log.e(TAG, "print: ", e);
             UIUtils.toast("Error: " + e.getMessage());

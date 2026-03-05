@@ -26,6 +26,9 @@ import androidx.annotation.Nullable;
 import com.albadr.printer.util.PrintUtils;
 import com.albadr.printer.util.SharedPreferencesManager;
 import com.albadr.printer.util.UIUtils;
+import com.dantsu.escposprinter.EscPosPrinter;
+import com.dantsu.escposprinter.connection.bluetooth.BluetoothConnection;
+import com.dantsu.escposprinter.textparser.PrinterTextParserImg;
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig;
 import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings;
 
@@ -36,9 +39,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
-
-import net.posprinter.POSConst;
-import net.posprinter.POSPrinter;
 public class ThermalPrintService extends PrintService {
 
     private static final String LOG_TAG = "ThermalPrintService";
@@ -94,7 +94,7 @@ public class ThermalPrintService extends PrintService {
 
     private void handleHandleQueuedPrintJob(final PrintJob printJob) {
 
-        if (MyApp.get().curConnect == null) {
+        if (!MyApp.get().isPrinterConfigured()) {
             UIUtils.toast("من فضلك اعد المحاولة مرة اخري");
 
             SharedPreferencesManager sharedPreferencesManager = MyApp.getSharedPreferencesManager();
@@ -141,7 +141,7 @@ public class ThermalPrintService extends PrintService {
 
                             Log.d(TAG, "handleHandleQueuedPrintJob: "+versionCode);
                             Log.d(TAG, "handleHandleQueuedPrintJob: "+version);
-                            if (versionCode != version) {
+                            if (versionCode == version) {
                                 printJob.cancel();
                             }else {
                                 printNow(printJob);
@@ -242,13 +242,32 @@ public class ThermalPrintService extends PrintService {
         Log.d(TAG, "PDF file created successfully: " + file.getAbsolutePath() + ", size: " + file.length());
 
         try {
-            // Check if connection is still valid
-            if (MyApp.get().curConnect == null) {
+            // Check if printer is configured
+            if (!MyApp.get().isPrinterConfigured()) {
                 printJob.fail("Printer connection lost");
                 return;
             }
 
-            POSPrinter printerPos = new POSPrinter(MyApp.get().curConnect);
+            BluetoothConnection connection = MyApp.get().createBluetoothConnection();
+            if (connection == null) {
+                printJob.fail("Failed to create Bluetooth connection");
+                return;
+            }
+
+            float printerWidthMM;
+            int nbrCharsPerLine;
+            if (sharedPreferencesManager.getPrintSize().equals(mm50)) {
+                printerWidthMM = 48f;
+                nbrCharsPerLine = 32;
+            } else if (sharedPreferencesManager.getPrintSize().equals(mm80)) {
+                printerWidthMM = 72f;
+                nbrCharsPerLine = 42;
+            } else {
+                printerWidthMM = 96f;
+                nbrCharsPerLine = 56;
+            }
+
+            EscPosPrinter printer = new EscPosPrinter(connection, 203, printerWidthMM, nbrCharsPerLine);
 
             ArrayList<Bitmap> bitmaps = PrintUtils.pdfToBitmap(file);
 
@@ -260,41 +279,36 @@ public class ThermalPrintService extends PrintService {
             boolean printingSuccessful = true;
 
             try {
-                // Initialize printer once before printing all pages
-                printerPos.initializePrinter();
-                // Add a delay after initialization
-                Thread.sleep(200);
-
-                // Wake up printer in case it's in sleep mode
-                printerPos.feedLine();
-                Thread.sleep(100);
-
                 for (int i = 0; i < bitmaps.size(); i++) {
-
-                    int mWidth;
-                    if (sharedPreferencesManager.getPrintSize().equals(mm50)) {
-                        mWidth =  PRINTER_390;
-                    }else {
-                        mWidth=  PRINTER_500;
-                    }
-
                     try {
-                        // Print bitmap without reinitializing printer for each page
-                        printerPos.printBitmap(bitmaps.get(i), POSConst.ALIGNMENT_CENTER, mWidth)
-                                .feedLine();
+                        Bitmap pageBitmap = bitmaps.get(i);
 
-                        // Add a small delay to ensure data is processed
-                        Thread.sleep(100);
+                        // Split bitmap into chunks of 256px height (library limit)
+                        int chunkHeight = 256;
+                        int bitmapHeight = pageBitmap.getHeight();
+                        int bitmapWidth = pageBitmap.getWidth();
 
-                        // Only cut after the last page
+                        StringBuilder printContent = new StringBuilder();
+
+                        for (int yOffset = 0; yOffset < bitmapHeight; yOffset += chunkHeight) {
+                            int currentChunkHeight = Math.min(chunkHeight, bitmapHeight - yOffset);
+                            Bitmap chunk = Bitmap.createBitmap(pageBitmap, 0, yOffset, bitmapWidth, currentChunkHeight);
+
+                            String hexString = PrinterTextParserImg.bitmapToHexadecimalString(printer, chunk, false);
+                            printContent.append("[C]<img>").append(hexString).append("</img>\n");
+
+                            if (chunk != pageBitmap) {
+                                chunk.recycle();
+                            }
+                        }
+
+
+                        // Print with cut only on the last page
                         if (i == bitmaps.size() - 1) {
-                            printerPos.cutHalfAndFeed(1);
-                            // Final delay to ensure cut command is processed
-                            Thread.sleep(200);
-
-                            // Force print by sending additional feed lines to trigger printing
-                            printerPos.feedLine(3);
-                            Thread.sleep(100);
+                            printer.printFormattedTextAndCut(printContent.toString(), 50f);
+                            printer.printFormattedTextAndCut("\n\n\n\n\n\n\n\n\n\n");
+                        } else {
+                            printer.printFormattedText(printContent.toString());
                         }
 
                         Log.d(TAG, "Successfully printed page " + (i + 1) + " of " + bitmaps.size());
