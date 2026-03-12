@@ -11,6 +11,7 @@ import android.bluetooth.BluetoothDevice;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -18,24 +19,25 @@ import android.os.Handler;
 import android.os.Message;
 
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
-import android.widget.ArrayAdapter;
+import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.LinearLayout;
-import android.widget.RadioButton;
-import android.widget.RadioGroup;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.Toolbar;
 import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
 import com.albadr.printer.util.PrintUtils;
 import com.albadr.printer.util.SharedPreferencesManager;
 import com.albadr.printer.util.UIUtils;
-import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.firebase.remoteconfig.ConfigUpdate;
 import com.google.firebase.remoteconfig.ConfigUpdateListener;
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig;
@@ -69,19 +71,20 @@ public class MainActivity extends AppCompatActivity {
 
 
     private static final String TAG_BT = "BTService";
-    private AlertDialog.Builder builderSingle;
     BluetoothDevice con_dev;
     BluetoothService btService;
-    ArrayAdapter<String> mPairedDevices;
+    private ArrayList<BluetoothDevice> pairedDeviceList = new ArrayList<>();
     public static boolean isConnected = false;
     String filePath = null;
     Bitmap printData = null;
     private TextView imageView;
-    private RadioButton radio50, radio80, radio100;
-    private RadioGroup radioGroup;
+    private TextView toggle50, toggle80, toggle100;
+    private View statusDot;
     private LinearLayout li_update;
     private Button btn_update;
-    private FloatingActionButton fab;
+    private View fab;
+
+    private BottomSheetDialog printerDialog;
 
     private void checkPermissions() {
         int permission1 = ActivityCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE);
@@ -144,19 +147,41 @@ public class MainActivity extends AppCompatActivity {
         imageView = findViewById(R.id.imageView);
         li_update = findViewById(R.id.li_update);
         btn_update = findViewById(R.id.btn_update);
+        statusDot = findViewById(R.id.status_dot);
 
-        radio50 = findViewById(R.id.radio50);
-        radio80 = findViewById(R.id.radio80);
-        radio100 = findViewById(R.id.radio100);
-        radioGroup = findViewById(R.id.group_size);
+        toggle50 = findViewById(R.id.toggle_50);
+        toggle80 = findViewById(R.id.toggle_80);
+        toggle100 = findViewById(R.id.toggle_100);
 
 
         if (!sharedPreferencesManager.getPrintAddress().isEmpty()) {
             connectBt(sharedPreferencesManager.getPrintAddress());
-            imageView.setText("Selected Printer: " + sharedPreferencesManager.getPrintName());
-
+            imageView.setText(sharedPreferencesManager.getPrintName());
+            updateStatusDot(true);
         }
 
+        // Printer card click -> show bottom sheet
+        findViewById(R.id.card_printer).setOnClickListener(v -> {
+            BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+            if (mBluetoothAdapter == null) {
+                return;
+            } else if (!mBluetoothAdapter.isEnabled()) {
+                Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.BLUETOOTH_CONNECT}, 100);
+                    }
+                    return;
+                }
+                startActivityForResult(enableIntent, 505);
+            } else {
+                loadPairedDevices();
+                showPrinterBottomSheet();
+            }
+        });
+
+        findViewById(R.id.tv_privacy_policy).setOnClickListener(v ->
+                startActivity(new Intent(MainActivity.this, PrivacyPolicyActivity.class)));
 
         printSizes();
         checkPermissions();
@@ -167,58 +192,34 @@ public class MainActivity extends AppCompatActivity {
             ArrayList<Bitmap> bitmaps = PrintUtils.pdfToBitmap(new File(filePath));
 
             printData = bitmaps.get(0);
-
-
         }
 
+        // Load paired devices after btService is initialized
+        loadPairedDevices();
 
+        fab = findViewById(R.id.fab);
 
-        setPairedDevices();
-
-
-
-        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
-
-        setSupportActionBar(toolbar);
-
-        initDeviceListDialog();
-
-        fab = (FloatingActionButton) findViewById(R.id.fab);
-
-        fab.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Log.d("TAG", "onClick:1213123 " + isConnected);
-                if (isConnected || MyApp.get().isPrinterConfigured()) {
-                    print();
-
-                } else {
-
-                    BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-                    if (mBluetoothAdapter == null) {
-                        // Device does not support Bluetooth
-                    } else if (!mBluetoothAdapter.isEnabled()) {
-                        // Bluetooth is not enabled :)
-                        Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-                        if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                            // TODO: Consider calling
-                            //    ActivityCompat#requestPermissions
-
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.BLUETOOTH_CONNECT}, 100);
-                            }
-
-                            return;
+        fab.setOnClickListener(view -> {
+            Log.d("TAG", "onClick:1213123 " + isConnected);
+            if (isConnected || MyApp.get().isPrinterConfigured()) {
+                print();
+            } else {
+                BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+                if (mBluetoothAdapter == null) {
+                    // Device does not support Bluetooth
+                } else if (!mBluetoothAdapter.isEnabled()) {
+                    Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+                    if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.BLUETOOTH_CONNECT}, 100);
                         }
-                        startActivityForResult(enableIntent, 505);
-                    } else {
-                        setPairedDevices();
-                        initDeviceListDialog();
-                        builderSingle.show();
+                        return;
                     }
-
+                    startActivityForResult(enableIntent, 505);
+                } else {
+                    loadPairedDevices();
+                    showPrinterBottomSheet();
                 }
-
             }
         });
 
@@ -228,37 +229,110 @@ public class MainActivity extends AppCompatActivity {
 
     private static final int REQUEST_CODE_BLUETOOTH_CONNECT = 100;
 
-    private void setPairedDevices() {
-        // Check for the Bluetooth permission on Android S (API 31) and above.
+    private void loadPairedDevices() {
+        pairedDeviceList.clear();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
                 ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.BLUETOOTH_CONNECT}, REQUEST_CODE_BLUETOOTH_CONNECT);
-            // Return here and wait for the permission callback before proceeding.
             return;
         }
 
-        // Initialize your adapter
-        mPairedDevices = new ArrayAdapter<>(MainActivity.this,
-                android.R.layout.simple_list_item_1, android.R.id.text1);
-
         BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-
         if (bluetoothAdapter == null) {
             Toast.makeText(this, "Bluetooth is not supported on this device", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        // Now that we have permission, get the paired devices.
         Set<BluetoothDevice> pairedDevices = btService.getPairedDev();
+        if (pairedDevices != null) {
+            pairedDeviceList.addAll(pairedDevices);
+        }
+    }
 
-        if (pairedDevices != null && pairedDevices.size() > 0) {
-            for (BluetoothDevice device : pairedDevices) {
-                // Since permission is already granted, it's safe to use device methods.
-                mPairedDevices.add(device.getName() + "\n" + device.getAddress());
-                Log.d(TAG, "onCreate: " + device.getName() + "\n" + device.getAddress());
+    @SuppressLint("SetTextI18n")
+    private void showPrinterBottomSheet() {
+        printerDialog = new BottomSheetDialog(this);
+        View sheetView = LayoutInflater.from(this).inflate(R.layout.dialog_printer_list, null);
+        printerDialog.setContentView(sheetView);
+
+        RecyclerView rv = sheetView.findViewById(R.id.rv_printers);
+        rv.setLayoutManager(new LinearLayoutManager(this));
+        rv.setAdapter(new PrinterAdapter());
+
+        sheetView.findViewById(R.id.btn_disconnect).setOnClickListener(v -> {
+            if (btService != null) {
+                btService.cancelDiscovery();
             }
-        } else {
-            mPairedDevices.add("No printers");
+            isConnected = false;
+            imageView.setText("لم يتم اختيار طابعة");
+            updateStatusDot(false);
+            sharedPreferencesManager.savePrintAddress("");
+            sharedPreferencesManager.savePrintName("");
+            printerDialog.dismiss();
+        });
+
+        sheetView.findViewById(R.id.btn_cancel).setOnClickListener(v -> printerDialog.dismiss());
+
+        printerDialog.show();
+    }
+
+    private void updateStatusDot(boolean connected) {
+        GradientDrawable dot = (GradientDrawable) statusDot.getBackground();
+        dot.setColor(ContextCompat.getColor(this,
+                connected ? R.color.status_connected : R.color.status_disconnected));
+    }
+
+    // RecyclerView Adapter for Printer List
+    private class PrinterAdapter extends RecyclerView.Adapter<PrinterAdapter.VH> {
+        @NonNull
+        @Override
+        public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_printer, parent, false);
+            return new VH(v);
+        }
+
+        @SuppressLint("SetTextI18n")
+        @Override
+        public void onBindViewHolder(@NonNull VH holder, int position) {
+            BluetoothDevice device = pairedDeviceList.get(position);
+            if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                return;
+            }
+            String name = device.getName();
+            String address = device.getAddress();
+            holder.tvName.setText(name != null ? name : "Unknown");
+            holder.tvAddress.setText(address);
+            holder.itemView.setOnClickListener(v -> {
+                con_dev = device;
+                connectBt(con_dev.getAddress());
+                sharedPreferencesManager.savePrintAddress(con_dev.getAddress());
+                if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.BLUETOOTH_CONNECT}, 100);
+                    } else {
+                        ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.BLUETOOTH}, 100);
+                    }
+                    return;
+                }
+                sharedPreferencesManager.savePrintName(con_dev.getName());
+                imageView.setText(con_dev.getName());
+                updateStatusDot(true);
+                if (printerDialog != null) printerDialog.dismiss();
+            });
+        }
+
+        @Override
+        public int getItemCount() {
+            return pairedDeviceList.size();
+        }
+
+        class VH extends RecyclerView.ViewHolder {
+            TextView tvName, tvAddress;
+            VH(@NonNull View itemView) {
+                super(itemView);
+                tvName = itemView.findViewById(R.id.tv_printer_name);
+                tvAddress = itemView.findViewById(R.id.tv_printer_address);
+            }
         }
     }
 
@@ -347,88 +421,59 @@ public class MainActivity extends AppCompatActivity {
 
         li_update.setVisibility(View.VISIBLE);
         fab.setVisibility(View.GONE);
-        btn_update.setOnClickListener(v -> openAppInStore());
+         btn_update.setOnClickListener(v -> openAppInStore());
 
     }
-
 
     private void openAppInStore() {
         String appPackageName = "com.albadr.printer";
 
         try {
-            // Open the app's page on the Play Store
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + appPackageName)));
         } catch (android.content.ActivityNotFoundException e) {
-            // If Play Store app is not available, open the app's page in a browser
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=" + appPackageName)));
         }
-    }
-
-    @SuppressLint("SetTextI18n")
-    private void initDeviceListDialog() {
-        builderSingle = new AlertDialog.Builder(MainActivity.this);
-        builderSingle.setIcon(android.R.drawable.ic_btn_speak_now);
-        builderSingle.setTitle("Select Printer:-");
-
-        builderSingle.setNegativeButton(
-                "cancel",
-                (dialog, which) -> dialog.dismiss());
-
-
-        builderSingle.setAdapter(
-                mPairedDevices,
-                (dialog, which) -> {
-                    String info = mPairedDevices.getItem(which);
-                    String address = info.substring(info.length() - 17);
-                    con_dev = btService.getDevByMac(address);
-
-                    connectBt(con_dev.getAddress());
-
-//                  btService.connect(con_dev);
-                    sharedPreferencesManager.savePrintAddress(con_dev.getAddress());
-                    if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-
-
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.BLUETOOTH_CONNECT}, 100);
-                        } else {
-                            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.BLUETOOTH}, 100);
-                        }
-                        return;
-                    }
-                    sharedPreferencesManager.savePrintName(con_dev.getName());
-                    imageView.setText("Selected Printer: " + con_dev.getName());
-                });
-
     }
 
 
     private void printSizes() {
 
-
         String printSize = sharedPreferencesManager.getPrintSize();
 
         if (printSize.equals(mm50)) {
-            radio50.setChecked(true);
-        }else if (printSize.equals(mm80)){
-              radio80.setChecked(true);
-        }else {
-             radio100.setChecked(true);
+            selectToggle(toggle50);
+        } else if (printSize.equals(mm80)) {
+            selectToggle(toggle80);
+        } else {
+            selectToggle(toggle100);
         }
 
-
-        radioGroup.setOnCheckedChangeListener((group, checkedId) -> {
-            if (checkedId ==  radio50.getId()) {
-                sharedPreferencesManager.savePrintSize(mm50);
-            }else if (checkedId ==  radio80.getId()){
-                sharedPreferencesManager.savePrintSize(mm80);
-            }else {
-                sharedPreferencesManager.savePrintSize(mm100);
-
-            }
-
+        toggle50.setOnClickListener(v -> {
+            selectToggle(toggle50);
+            sharedPreferencesManager.savePrintSize(mm50);
         });
+        toggle80.setOnClickListener(v -> {
+            selectToggle(toggle80);
+            sharedPreferencesManager.savePrintSize(mm80);
+        });
+        toggle100.setOnClickListener(v -> {
+            selectToggle(toggle100);
+            sharedPreferencesManager.savePrintSize(mm100);
+        });
+    }
 
+    private void selectToggle(TextView selected) {
+        // Reset all
+        toggle50.setBackgroundResource(R.drawable.bg_toggle_unselected);
+        toggle80.setBackgroundResource(R.drawable.bg_toggle_unselected);
+        toggle100.setBackgroundResource(R.drawable.bg_toggle_unselected);
+        toggle50.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
+        toggle80.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
+        toggle100.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
+
+        // Select
+        selected.setBackgroundResource(R.drawable.bg_toggle_selected);
+        selected.setTextColor(ContextCompat.getColor(this, R.color.orange_primary));
     }
 
     private void print() {
@@ -526,7 +571,7 @@ public class MainActivity extends AppCompatActivity {
         if (requestCode == REQUEST_CODE_BLUETOOTH_CONNECT) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 // Permission granted, try setting up the paired devices again.
-                setPairedDevices();
+                loadPairedDevices();
             } else {
                 // Permission denied, show an error message or disable Bluetooth-related features.
                 Toast.makeText(this, "Bluetooth permission is required to list paired devices", Toast.LENGTH_SHORT).show();

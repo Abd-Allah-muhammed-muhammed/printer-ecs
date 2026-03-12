@@ -7,4 +7,21 @@
     <color name="teal_700">#2196F3</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- Modern Orange Theme -->
+    <color name="orange_primary">#F57C00</color>
+    <color name="orange_primary_dark">#E65100</color>
+    <color name="orange_primary_light">#FFB74D</color>
+    <color name="orange_accent">#FF9800</color>
+    <color name="background_light">#FAFAFA</color>
+    <color name="card_background">#FFFFFF</color>
+    <color name="text_primary">#212121</color>
+    <color name="text_secondary">#757575</color>
+    <color name="text_hint">#BDBDBD</color>
+    <color name="divider">#EEEEEE</color>
+    <color name="toggle_selected_bg">#FFF3E0</color>
+    <color name="toggle_unselected_bg">#F5F5F5</color>
+    <color name="status_connected">#4CAF50</color>
+    <color name="status_disconnected">#BDBDBD</color>
+    <color name="privacy_link">#9E9E9E</color>
 </resources>
