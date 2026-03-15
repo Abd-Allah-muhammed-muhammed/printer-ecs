@@ -29,8 +29,8 @@ import com.albadr.printer.util.UIUtils;
 import com.dantsu.escposprinter.EscPosPrinter;
 import com.dantsu.escposprinter.connection.bluetooth.BluetoothConnection;
 import com.dantsu.escposprinter.textparser.PrinterTextParserImg;
-import com.google.firebase.remoteconfig.FirebaseRemoteConfig;
-import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings;
+//import com.google.firebase.remoteconfig.FirebaseRemoteConfig;
+//import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -113,13 +113,13 @@ public class ThermalPrintService extends PrintService {
             return;
         }
 
-        FirebaseRemoteConfig mFirebaseRemoteConfig = FirebaseRemoteConfig.getInstance();
-        FirebaseRemoteConfigSettings configSettings = new FirebaseRemoteConfigSettings.Builder()
-                .setMinimumFetchIntervalInSeconds(3600)
-                .build();
+//        FirebaseRemoteConfig mFirebaseRemoteConfig = FirebaseRemoteConfig.getInstance();
+//        FirebaseRemoteConfigSettings configSettings = new FirebaseRemoteConfigSettings.Builder()
+//                .setMinimumFetchIntervalInSeconds(3600)
+//                .build();
 
-        mFirebaseRemoteConfig.setConfigSettingsAsync(configSettings);
-        mFirebaseRemoteConfig.setDefaultsAsync(R.xml.remote_config_defaults);
+//        mFirebaseRemoteConfig.setConfigSettingsAsync(configSettings);
+//        mFirebaseRemoteConfig.setDefaultsAsync(R.xml.remote_config_defaults);
 
         // Add timeout for Firebase Remote Config
         Handler timeoutHandler = new Handler(Looper.getMainLooper());
@@ -130,32 +130,34 @@ public class ThermalPrintService extends PrintService {
 
         timeoutHandler.postDelayed(timeoutRunnable, 5000); // 5 second timeout
 
-        mFirebaseRemoteConfig.fetchAndActivate()
-                .addOnCompleteListener( task -> {
-                    timeoutHandler.removeCallbacks(timeoutRunnable); // Cancel timeout
+//        mFirebaseRemoteConfig.fetchAndActivate()
+//                .addOnCompleteListener( task -> {
+//                    timeoutHandler.removeCallbacks(timeoutRunnable); // Cancel timeout
+//
+//                    if (task.isSuccessful()) {
+//                        try {
+//                            long version = mFirebaseRemoteConfig.getAll().get("version").asLong();
+//                            int versionCode = BuildConfig.VERSION_CODE;
+//
+//                            Log.d(TAG, "handleHandleQueuedPrintJob: "+versionCode);
+//                            Log.d(TAG, "handleHandleQueuedPrintJob: "+version);
+//                            if (versionCode == version) {
+//                                printJob.cancel();
+//                            }else {
+//                                printNow(printJob);
+//                            }
+//                        } catch (Exception e) {
+//                            Log.e(TAG, "Error parsing version from Remote Config: " + e.getMessage());
+//                            printNow(printJob); // Proceed with printing on error
+//                        }
+//                    } else {
+//                        // Handle Firebase Remote Config failure - proceed with printing
+//                        Log.e(TAG, "Firebase Remote Config fetch failed, proceeding with printing");
+//                        printNow(printJob);
+//                    }
+//                });
 
-                    if (task.isSuccessful()) {
-                        try {
-                            long version = mFirebaseRemoteConfig.getAll().get("version").asLong();
-                            int versionCode = BuildConfig.VERSION_CODE;
-
-                            Log.d(TAG, "handleHandleQueuedPrintJob: "+versionCode);
-                            Log.d(TAG, "handleHandleQueuedPrintJob: "+version);
-                            if (versionCode == version) {
-                                printJob.cancel();
-                            }else {
-                                printNow(printJob);
-                            }
-                        } catch (Exception e) {
-                            Log.e(TAG, "Error parsing version from Remote Config: " + e.getMessage());
-                            printNow(printJob); // Proceed with printing on error
-                        }
-                    } else {
-                        // Handle Firebase Remote Config failure - proceed with printing
-                        Log.e(TAG, "Firebase Remote Config fetch failed, proceeding with printing");
-                        printNow(printJob);
-                    }
-                });
+        printNow(printJob);
     }
 
     private static final String TAG = "ThermalPrintService";

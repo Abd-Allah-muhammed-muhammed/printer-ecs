@@ -223,7 +223,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        firebase();
+//        firebase();
 
     }
 
@@ -364,12 +364,12 @@ public class MainActivity extends AppCompatActivity {
                         int versionCode = BuildConfig.VERSION_CODE;
                         Log.d(TAG, "firebase: " + version);
                         Log.d(TAG, "firebase: " + versionCode);
-                        if (versionCode != version) {
+//                        if (versionCode != version) {
 //                            showUpdateDialog();
-                        } else {
+//                        } else {
                             li_update.setVisibility(View.GONE);
                             fab.setVisibility(View.VISIBLE);
-                        }
+//                        }
 
                     } else {
                         Toast.makeText(MainActivity.this, "Fetch failed",
@@ -390,13 +390,13 @@ public class MainActivity extends AppCompatActivity {
                         Log.d(TAG, "firebase:onUpdate " + version);
                         int versionCode = BuildConfig.VERSION_CODE;
 
-                        if (versionCode < version) {
-                            showUpdateDialog();
-                        } else {
+//                        if (versionCode < version) {
+//                            showUpdateDialog();
+//                        } else {
 
                             li_update.setVisibility(View.GONE);
                             fab.setVisibility(View.VISIBLE);
-                        }
+//                        }
 
                     }
 
