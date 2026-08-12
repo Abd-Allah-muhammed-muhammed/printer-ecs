@@ -23,6 +23,7 @@ import android.printservice.PrintService;
 import android.printservice.PrinterDiscoverySession;
 import android.util.Log;
 import androidx.annotation.Nullable;
+import com.albadr.printer.util.Constants;
 import com.albadr.printer.util.PrintUtils;
 import com.albadr.printer.util.SharedPreferencesManager;
 import com.albadr.printer.util.UIUtils;
@@ -256,18 +257,9 @@ public class ThermalPrintService extends PrintService {
                 return;
             }
 
-            float printerWidthMM;
-            int nbrCharsPerLine;
-            if (sharedPreferencesManager.getPrintSize().equals(mm50)) {
-                printerWidthMM = 48f;
-                nbrCharsPerLine = 32;
-            } else if (sharedPreferencesManager.getPrintSize().equals(mm80)) {
-                printerWidthMM = 72f;
-                nbrCharsPerLine = 42;
-            } else {
-                printerWidthMM = 96f;
-                nbrCharsPerLine = 56;
-            }
+            String printSize = sharedPreferencesManager.getPrintSize();
+            float printerWidthMM = Constants.widthMmFor(printSize);
+            int nbrCharsPerLine = Constants.charsPerLineFor(printSize);
 
             EscPosPrinter printer = new EscPosPrinter(connection, 203, printerWidthMM, nbrCharsPerLine);
 
@@ -384,6 +376,9 @@ public class ThermalPrintService extends PrintService {
         ThermalPrinterDiscoverySession(PrinterInfo printerInfo) {
 
 
+            // Do not resize these. The page size decides how the *source* app lays the
+            // receipt out (font sizes, column widths, where it breaks pages), so any
+            // change here reflows every receipt of every app that prints to us.
             PrintAttributes.MediaSize mediaSize58 = new PrintAttributes.MediaSize("58M", "58M", 3200, 8800);
 
             PrintAttributes.MediaSize mediaSize80 = new PrintAttributes.MediaSize("80M", "80M", 4413, 12137);

@@ -34,6 +34,7 @@ import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.albadr.printer.util.Constants;
 import com.albadr.printer.util.PrintUtils;
 import com.albadr.printer.util.SharedPreferencesManager;
 import com.albadr.printer.util.UIUtils;
@@ -485,18 +486,9 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
 
-            float printerWidthMM;
-            int nbrCharsPerLine;
-            if (sharedPreferencesManager.getPrintSize().equals(mm50)) {
-                printerWidthMM = 48f;
-                nbrCharsPerLine = 32;
-            } else if (sharedPreferencesManager.getPrintSize().equals(mm80)) {
-                printerWidthMM = 72f;
-                nbrCharsPerLine = 42;
-            } else {
-                printerWidthMM = 96f;
-                nbrCharsPerLine = 56;
-            }
+            String printSize = sharedPreferencesManager.getPrintSize();
+            float printerWidthMM = Constants.widthMmFor(printSize);
+            int nbrCharsPerLine = Constants.charsPerLineFor(printSize);
 
             EscPosPrinter printer = new EscPosPrinter(connection, 203, printerWidthMM, nbrCharsPerLine);
 
