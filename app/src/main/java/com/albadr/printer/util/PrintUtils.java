@@ -1,8 +1,7 @@
 package com.albadr.printer.util;
 
 
-  import static com.albadr.printer.util.Constants.mm50;
-  import static com.albadr.printer.util.Constants.mm80;
+  import static com.albadr.printer.util.Constants.mm100;
 
   import android.graphics.Bitmap;
   import android.graphics.Canvas;
@@ -19,11 +18,15 @@ package com.albadr.printer.util;
 public class PrintUtils {
 
     /**
-     * Supersampling factor for the auto-fit path: the page is rasterized this much
-     * wider than the print head, then downscaled with filtering. Rendering straight
-     * at 384px makes small Arabic glyphs break up; 2x downscaled stays readable.
+     * Width the page is rasterized at before cropping, in pixels.
+     *
+     * The receipt only covers part of the page (a web invoice sits at roughly 65% of
+     * the page width), so after the margins are cropped away noticeably less than
+     * this is left to resample onto the print head. 1200 leaves the 58mm head about
+     * a 2x downsample to work with, which keeps small Arabic glyphs readable, while
+     * one page stays around 16MB of bitmap.
      */
-    private static final int RENDER_SCALE = 2;
+    private static final int RENDER_WIDTH_PX = 1200;
 
     /** Pixels with all channels above this are treated as blank paper. */
     private static final int WHITE_THRESHOLD = 250;
@@ -44,19 +47,19 @@ public class PrintUtils {
     public static ArrayList<Bitmap> pdfToBitmap(File pdfFile) {
         String printSize = MyApp.getSharedPreferencesManager().getPrintSize();
 
-        // Only the 58mm roll uses the auto-fit path. 80mm and 104mm already print
-        // correctly with the fixed sizes below, and auto-fit would reflow them.
-        if (mm50.equals(printSize)) {
-            return renderAutoFit(pdfFile);
+        // 104mm is untested against the auto-fit path and nobody has reported a
+        // problem with it, so it keeps the fixed sizing it always used.
+        if (mm100.equals(printSize)) {
+            return renderFixed(pdfFile);
         }
-        return renderFixed(pdfFile, printSize);
+        return renderAutoFit(pdfFile, Constants.widthPxFor(printSize));
     }
 
     // ---------------------------------------------------------------------
-    // 80mm / 104mm: fixed render size, bottom whitespace trimmed.
+    // 104mm: fixed render size, bottom whitespace trimmed.
     // ---------------------------------------------------------------------
 
-    private static ArrayList<Bitmap> renderFixed(File pdfFile, String printSize) {
+    private static ArrayList<Bitmap> renderFixed(File pdfFile) {
         ArrayList<Bitmap> bitmaps = new ArrayList<>();
 
         try {
@@ -67,18 +70,7 @@ public class PrintUtils {
             for (int i = 0; i < pageCount; i++) {
                 PdfRenderer.Page page = renderer.openPage(i);
 
-                int width;
-                int height;
-
-                if (mm80.equals(printSize)) {
-                    width = 565;
-                    height = 1655;
-                } else {
-                    width = 735;
-                    height = 2151;
-                }
-
-                bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+                bitmap = Bitmap.createBitmap(735, 2151, Bitmap.Config.ARGB_8888);
 
                 // Fill with white before rendering so transparent pixels become white
                 Canvas canvas = new Canvas(bitmap);
@@ -99,7 +91,7 @@ public class PrintUtils {
             renderer.close();
         } catch (Exception ex) {
 
-            Log.d(TAG, "pdfToBitmap: " + ex.getMessage());
+            Log.d(TAG, "renderFixed: " + ex.getMessage());
             ex.printStackTrace();
         }
 
@@ -158,18 +150,18 @@ public class PrintUtils {
     }
 
     // ---------------------------------------------------------------------
-    // 58mm: side margins cropped, content scaled to the exact head width.
+    // 58mm / 80mm: side margins cropped, content scaled to the exact head width.
     // ---------------------------------------------------------------------
 
-    private static ArrayList<Bitmap> renderAutoFit(File pdfFile) {
+    private static ArrayList<Bitmap> renderAutoFit(File pdfFile, int targetWidth) {
         ArrayList<Bitmap> bitmaps = new ArrayList<>();
 
         PdfRenderer renderer = null;
         try {
             renderer = new PdfRenderer(ParcelFileDescriptor.open(pdfFile, ParcelFileDescriptor.MODE_READ_WRITE));
 
-            int targetWidth = Constants.WIDTH_PX_58;
-            int renderWidth = targetWidth * RENDER_SCALE;
+            // Never rasterize below the head width, however narrow the head is.
+            int renderWidth = Math.max(RENDER_WIDTH_PX, targetWidth * 2);
 
             final int pageCount = renderer.getPageCount();
 
@@ -251,10 +243,10 @@ public class PrintUtils {
     /**
      * Finds the leftmost and rightmost printed column of one page.
      *
-     * The source app lays its receipt out with its own margins (a WebView print adds
-     * roughly half an inch each side), and those margins survive into the PDF. On a
-     * 48mm head that leaves a wide blank band on both sides of the paper, so the
-     * margins are measured here and dropped before printing.
+     * The source app lays its receipt out with its own margins — the web invoice
+     * only covers about 65% of the page width — and those margins survive into the
+     * PDF, where they become a blank band down both sides of the paper. They are
+     * measured here so they can be dropped before printing.
      *
      * @return {left, right} inclusive column bounds, or {@code {width, -1}} when the
      *         page is blank.

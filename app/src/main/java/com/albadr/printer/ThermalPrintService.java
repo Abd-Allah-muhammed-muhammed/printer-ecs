@@ -376,12 +376,21 @@ public class ThermalPrintService extends PrintService {
         ThermalPrinterDiscoverySession(PrinterInfo printerInfo) {
 
 
-            // Do not resize these. The page size decides how the *source* app lays the
-            // receipt out (font sizes, column widths, where it breaks pages), so any
-            // change here reflows every receipt of every app that prints to us.
-            PrintAttributes.MediaSize mediaSize58 = new PrintAttributes.MediaSize("58M", "58M", 3200, 8800);
-
+            // 58M deliberately declares the same page as 80M.
+            //
+            // The page size decides how the *source* app lays the receipt out, and web
+            // receipts do not reflow below a minimum table width. On the old 3200 mil
+            // (81mm) page the totals table overflowed its container and the PDF came
+            // out with that column clipped, split over two pages. Nothing downstream
+            // can recover pixels the PDF never contained.
+            //
+            // Giving 58M the page the layout already fits on, then cropping the margins
+            // and scaling down to the 384 dot head (see PrintUtils.renderAutoFit),
+            // prints the whole receipt at 58mm instead of a clipped one. 80M goes
+            // through the same crop onto its 576 dot head.
             PrintAttributes.MediaSize mediaSize80 = new PrintAttributes.MediaSize("80M", "80M", 4413, 12137);
+
+            PrintAttributes.MediaSize mediaSize58 = new PrintAttributes.MediaSize("58M", "58M", 4413, 12137);
 
             PrintAttributes.MediaSize mediaSize104 = new PrintAttributes.MediaSize("104M", "104M", 5737, 15779);
 
