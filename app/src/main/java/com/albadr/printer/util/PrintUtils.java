@@ -1,8 +1,6 @@
 package com.albadr.printer.util;
 
 
-  import static com.albadr.printer.util.Constants.mm100;
-
   import android.graphics.Bitmap;
   import android.graphics.Canvas;
   import android.graphics.Color;
@@ -20,11 +18,10 @@ public class PrintUtils {
     /**
      * Width the page is rasterized at before cropping, in pixels.
      *
-     * The receipt only covers part of the page (a web invoice sits at roughly 65% of
-     * the page width), so after the margins are cropped away noticeably less than
-     * this is left to resample onto the print head. 1200 leaves the 58mm head about
-     * a 2x downsample to work with, which keeps small Arabic glyphs readable, while
-     * one page stays around 16MB of bitmap.
+     * Comfortably above every head width so there is detail to spare after the
+     * margins are cropped away, while one page stays around 16MB of bitmap.
+     * Supersampling then downscaling with filtering is what keeps small Arabic
+     * glyphs legible once they land on a 384 dot head.
      */
     private static final int RENDER_WIDTH_PX = 1200;
 
@@ -44,114 +41,17 @@ public class PrintUtils {
     /** Blank rows kept below the last printed row, in rendered pixels. */
     private static final int BOTTOM_PADDING = 24;
 
+    /**
+     * Renders a print job's PDF into one bitmap per page, each exactly as wide as the
+     * print head, with any blank margins the source left around the content removed.
+     *
+     * Nothing here is specific to a particular source: a document that already fills
+     * the page it was given has no margins to find and comes through at 1:1.
+     */
     public static ArrayList<Bitmap> pdfToBitmap(File pdfFile) {
         String printSize = MyApp.getSharedPreferencesManager().getPrintSize();
-
-        // 104mm is untested against the auto-fit path and nobody has reported a
-        // problem with it, so it keeps the fixed sizing it always used.
-        if (mm100.equals(printSize)) {
-            return renderFixed(pdfFile);
-        }
         return renderAutoFit(pdfFile, Constants.widthPxFor(printSize));
     }
-
-    // ---------------------------------------------------------------------
-    // 104mm: fixed render size, bottom whitespace trimmed.
-    // ---------------------------------------------------------------------
-
-    private static ArrayList<Bitmap> renderFixed(File pdfFile) {
-        ArrayList<Bitmap> bitmaps = new ArrayList<>();
-
-        try {
-            PdfRenderer renderer = new PdfRenderer(ParcelFileDescriptor.open(pdfFile, ParcelFileDescriptor.MODE_READ_WRITE));
-
-            Bitmap bitmap;
-            final int pageCount = renderer.getPageCount();
-            for (int i = 0; i < pageCount; i++) {
-                PdfRenderer.Page page = renderer.openPage(i);
-
-                bitmap = Bitmap.createBitmap(735, 2151, Bitmap.Config.ARGB_8888);
-
-                // Fill with white before rendering so transparent pixels become white
-                Canvas canvas = new Canvas(bitmap);
-                canvas.drawColor(Color.WHITE);
-
-                page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
-
-                // Trim white space from the bottom of the bitmap
-                bitmap = trimBottom(bitmap);
-
-                bitmaps.add(bitmap);
-
-                // close the page
-                page.close();
-            }
-
-            // close the renderer
-            renderer.close();
-        } catch (Exception ex) {
-
-            Log.d(TAG, "renderFixed: " + ex.getMessage());
-            ex.printStackTrace();
-        }
-
-        return bitmaps;
-    }
-
-    /**
-     * Trims white space from the bottom of a bitmap.
-     * Scans from the bottom up to find the last row that contains non-white pixels,
-     * then crops the bitmap to that height plus a small padding.
-     */
-    private static Bitmap trimBottom(Bitmap bitmap) {
-        int width = bitmap.getWidth();
-        int height = bitmap.getHeight();
-
-        // Minimum height to avoid returning an empty bitmap
-        int minHeight = 50;
-        // Padding to add below the last content row (in pixels)
-        int bottomPadding = 30;
-
-        int lastContentRow = minHeight;
-        int[] rowPixels = new int[width];
-
-        for (int y = height - 1; y >= minHeight; y--) {
-            bitmap.getPixels(rowPixels, 0, width, 0, y, width, 1);
-
-            boolean hasContent = false;
-            for (int x = 0; x < width; x++) {
-                if (isContent(rowPixels[x])) {
-                    hasContent = true;
-                    break;
-                }
-            }
-
-            if (hasContent) {
-                lastContentRow = y;
-                break;
-            }
-        }
-
-        // Calculate the new height with padding
-        int newHeight = Math.min(lastContentRow + bottomPadding, height);
-
-        // Only trim if we can save at least 10% of the height
-        if (newHeight < height * 0.9) {
-            Log.d(TAG, "trimBottom: trimmed from " + height + " to " + newHeight + " pixels");
-            Bitmap trimmedBitmap = Bitmap.createBitmap(bitmap, 0, 0, width, newHeight);
-            // Recycle the original bitmap to free memory
-            if (trimmedBitmap != bitmap) {
-                bitmap.recycle();
-            }
-            return trimmedBitmap;
-        }
-
-        return bitmap;
-    }
-
-    // ---------------------------------------------------------------------
-    // 58mm / 80mm: side margins cropped, content scaled to the exact head width.
-    // ---------------------------------------------------------------------
 
     private static ArrayList<Bitmap> renderAutoFit(File pdfFile, int targetWidth) {
         ArrayList<Bitmap> bitmaps = new ArrayList<>();

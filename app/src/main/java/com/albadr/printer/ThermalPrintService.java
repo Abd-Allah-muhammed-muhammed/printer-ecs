@@ -376,39 +376,32 @@ public class ThermalPrintService extends PrintService {
         ThermalPrinterDiscoverySession(PrinterInfo printerInfo) {
 
 
-            // 58M deliberately declares the same page as 80M.
-            //
-            // The page size decides how the *source* app lays the receipt out, and web
-            // receipts do not reflow below a minimum table width. On the old 3200 mil
-            // (81mm) page the totals table overflowed its container and the PDF came
-            // out with that column clipped, split over two pages. Nothing downstream
-            // can recover pixels the PDF never contained.
-            //
-            // Giving 58M the page the layout already fits on, then cropping the margins
-            // and scaling down to the 384 dot head (see PrintUtils.renderAutoFit),
-            // prints the whole receipt at 58mm instead of a clipped one. 80M goes
-            // through the same crop onto its 576 dot head.
-            PrintAttributes.MediaSize mediaSize80 = new PrintAttributes.MediaSize("80M", "80M", 4413, 12137);
-
-            PrintAttributes.MediaSize mediaSize58 = new PrintAttributes.MediaSize("58M", "58M", 4413, 12137);
-
-            PrintAttributes.MediaSize mediaSize104 = new PrintAttributes.MediaSize("104M", "104M", 5737, 15779);
-
-            PrintAttributes.MediaSize mediaSize ;
-
+            // The advertised page is the roll's real printable area, so a source that
+            // lays out for the page it is handed prints at its intended size. A source
+            // that cannot reflow that narrow overflows and arrives already clipped in
+            // the PDF; compatibility mode widens the page for it and PrintUtils scales
+            // the result back down onto the head.
             SharedPreferencesManager sharedPreferencesManager = MyApp.getSharedPreferencesManager();
 
+            String printSize = sharedPreferencesManager.getPrintSize();
+            boolean widePage = sharedPreferencesManager.isWidePageEnabled();
 
-            if (sharedPreferencesManager.getPrintSize().equals(mm50)) {
-
-                mediaSize = mediaSize58;
-            }else if (sharedPreferencesManager.getPrintSize().equals(mm80)){
-
-                mediaSize = mediaSize80;
-            }else {
-
-                mediaSize = mediaSize104;
+            String label;
+            if (printSize.equals(mm50)) {
+                label = "58M";
+            } else if (printSize.equals(mm80)) {
+                label = "80M";
+            } else {
+                label = "104M";
             }
+
+            PrintAttributes.MediaSize mediaSize = new PrintAttributes.MediaSize(
+                    label, label,
+                    Constants.mediaWidthMilsFor(printSize, widePage),
+                    Constants.mediaHeightMilsFor(printSize, widePage));
+
+            Log.d(TAG, "media size " + label + " widePage=" + widePage
+                    + " -> " + mediaSize.getWidthMils() + "x" + mediaSize.getHeightMils() + " mils");
 
             PrinterCapabilitiesInfo capabilities =
                     new PrinterCapabilitiesInfo.Builder(printerInfo.getId())
