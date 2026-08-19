@@ -46,42 +46,33 @@ public class Constants {
     public static final int MEDIA_HEIGHT_MILS_80 = 7796;
     public static final int MEDIA_HEIGHT_MILS_104 = 10395;
 
+    /** Advertised page width in mils for a roll size. */
+    public static int mediaWidthMilsFor(String printSize) {
+        if (mm50.equals(printSize)) {
+            return MEDIA_WIDTH_MILS_58;
+        } else if (mm80.equals(printSize)) {
+            return MEDIA_WIDTH_MILS_80;
+        }
+        return MEDIA_WIDTH_MILS_104;
+    }
+
+    /** Advertised page height in mils for a roll size. */
+    public static int mediaHeightMilsFor(String printSize) {
+        if (mm50.equals(printSize)) {
+            return MEDIA_HEIGHT_MILS_58;
+        } else if (mm80.equals(printSize)) {
+            return MEDIA_HEIGHT_MILS_80;
+        }
+        return MEDIA_HEIGHT_MILS_104;
+    }
+
     /**
-     * How much wider the advertised page gets in compatibility mode.
+     * Paper fed after the last page, in millimeters, before the cut command.
      *
-     * A source whose layout will not reflow below some minimum overflows a narrow
-     * page and the PDF arrives already clipped — nothing downstream can recover it.
-     * Handing that source a page 2.33x the printable width gives its layout room,
-     * and PrintUtils scales the result back down onto the head. Costs sharpness, so
-     * it is off by default.
+     * Enough to push the last line clear of the tear bar on a printer with no cutter,
+     * without spending a hand's length of roll on every receipt.
      */
-    public static final float WIDE_PAGE_FACTOR = 2.33f;
-
-    /** Advertised page width in mils for a roll size, honouring compatibility mode. */
-    public static int mediaWidthMilsFor(String printSize, boolean widePage) {
-        int width;
-        if (mm50.equals(printSize)) {
-            width = MEDIA_WIDTH_MILS_58;
-        } else if (mm80.equals(printSize)) {
-            width = MEDIA_WIDTH_MILS_80;
-        } else {
-            width = MEDIA_WIDTH_MILS_104;
-        }
-        return widePage ? Math.round(width * WIDE_PAGE_FACTOR) : width;
-    }
-
-    /** Advertised page height in mils for a roll size, honouring compatibility mode. */
-    public static int mediaHeightMilsFor(String printSize, boolean widePage) {
-        int height;
-        if (mm50.equals(printSize)) {
-            height = MEDIA_HEIGHT_MILS_58;
-        } else if (mm80.equals(printSize)) {
-            height = MEDIA_HEIGHT_MILS_80;
-        } else {
-            height = MEDIA_HEIGHT_MILS_104;
-        }
-        return widePage ? Math.round(height * WIDE_PAGE_FACTOR) : height;
-    }
+    public static final float FEED_AFTER_PRINT_MM = 15f;
 
     /** Printable width in dots for the currently selected roll size. */
     public static int widthPxFor(String printSize) {

@@ -80,7 +80,6 @@ public class MainActivity extends AppCompatActivity {
     Bitmap printData = null;
     private TextView imageView;
     private TextView toggle50, toggle80, toggle100;
-    private androidx.appcompat.widget.SwitchCompat switchWidePage;
     private View statusDot;
     private LinearLayout li_update;
     private Button btn_update;
@@ -154,7 +153,6 @@ public class MainActivity extends AppCompatActivity {
         toggle50 = findViewById(R.id.toggle_50);
         toggle80 = findViewById(R.id.toggle_80);
         toggle100 = findViewById(R.id.toggle_100);
-        switchWidePage = findViewById(R.id.switch_wide_page);
 
 
         if (!sharedPreferencesManager.getPrintAddress().isEmpty()) {
@@ -462,14 +460,6 @@ public class MainActivity extends AppCompatActivity {
         toggle100.setOnClickListener(v -> {
             selectToggle(toggle100);
             sharedPreferencesManager.savePrintSize(mm100);
-        });
-
-        switchWidePage.setChecked(sharedPreferencesManager.isWidePageEnabled());
-        switchWidePage.setOnCheckedChangeListener((v, checked) -> {
-            sharedPreferencesManager.saveWidePageEnabled(checked);
-            // The print dialog reads the page size when it opens, so a dialog that is
-            // already on screen keeps the old one.
-            UIUtils.toast("اقفل شاشة الطباعة وافتحها تاني عشان الإعداد يشتغل");
         });
     }
 

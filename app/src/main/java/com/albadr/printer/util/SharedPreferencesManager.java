@@ -13,7 +13,6 @@ public class SharedPreferencesManager {
     private static final String KEY_PRINT_NAME = "KEY_PRINT_NAME";
     private static final String NUMBER_PRINTING = "NUMBER_PRINTING";
     private static final String KEY_PRINT_ADDRESS = "KEY_PRINT_Address";
-    private static final String KEY_WIDE_PAGE = "KEY_WIDE_PAGE";
 
     private static SharedPreferencesManager instance;
 
@@ -60,20 +59,6 @@ public class SharedPreferencesManager {
         return sharedPreferences.getString(KEY_PRINT_SIZE, mm50);
     }
 
-    /**
-     * Compatibility mode. Off by default: the print service advertises the roll's
-     * real printable width, which is what a source that lays out for the page it is
-     * given expects. Turn it on for a source whose layout will not reflow narrow and
-     * comes out clipped — it is then given a wider page and scaled down to fit.
-     */
-    public boolean isWidePageEnabled() {
-        return sharedPreferences.getBoolean(KEY_WIDE_PAGE, false);
-    }
-
-    public void saveWidePageEnabled(boolean enabled) {
-        editor.putBoolean(KEY_WIDE_PAGE, enabled);
-        editor.apply();
-    }
 
 
     public int getNumberPrinting() {

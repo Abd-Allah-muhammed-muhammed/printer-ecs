@@ -297,10 +297,12 @@ public class ThermalPrintService extends PrintService {
                         }
 
 
-                        // Print with cut only on the last page
+                        // Print with cut only on the last page. One cut, one feed:
+                        // cutting twice with a 50mm feed and ten blank lines between
+                        // them left a hand's length of empty roll after every receipt.
                         if (i == bitmaps.size() - 1) {
-                            printer.printFormattedTextAndCut(printContent.toString(), 50f);
-                            printer.printFormattedTextAndCut("\n\n\n\n\n\n\n\n\n\n");
+                            printer.printFormattedTextAndCut(printContent.toString(),
+                                    Constants.FEED_AFTER_PRINT_MM);
                         } else {
                             printer.printFormattedText(printContent.toString());
                         }
@@ -376,15 +378,11 @@ public class ThermalPrintService extends PrintService {
         ThermalPrinterDiscoverySession(PrinterInfo printerInfo) {
 
 
-            // The advertised page is the roll's real printable area, so a source that
-            // lays out for the page it is handed prints at its intended size. A source
-            // that cannot reflow that narrow overflows and arrives already clipped in
-            // the PDF; compatibility mode widens the page for it and PrintUtils scales
-            // the result back down onto the head.
+            // The advertised page is the real printable area of the roll, so a source
+            // that lays out for the page it is handed prints at its intended size.
             SharedPreferencesManager sharedPreferencesManager = MyApp.getSharedPreferencesManager();
 
             String printSize = sharedPreferencesManager.getPrintSize();
-            boolean widePage = sharedPreferencesManager.isWidePageEnabled();
 
             String label;
             if (printSize.equals(mm50)) {
@@ -397,11 +395,11 @@ public class ThermalPrintService extends PrintService {
 
             PrintAttributes.MediaSize mediaSize = new PrintAttributes.MediaSize(
                     label, label,
-                    Constants.mediaWidthMilsFor(printSize, widePage),
-                    Constants.mediaHeightMilsFor(printSize, widePage));
+                    Constants.mediaWidthMilsFor(printSize),
+                    Constants.mediaHeightMilsFor(printSize));
 
-            Log.d(TAG, "media size " + label + " widePage=" + widePage
-                    + " -> " + mediaSize.getWidthMils() + "x" + mediaSize.getHeightMils() + " mils");
+            Log.d(TAG, "media size " + label + " -> "
+                    + mediaSize.getWidthMils() + "x" + mediaSize.getHeightMils() + " mils");
 
             PrinterCapabilitiesInfo capabilities =
                     new PrinterCapabilitiesInfo.Builder(printerInfo.getId())
