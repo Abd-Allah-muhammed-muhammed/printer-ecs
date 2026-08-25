@@ -46,6 +46,18 @@ public class Constants {
     public static final int MEDIA_HEIGHT_MILS_80 = 7796;
     public static final int MEDIA_HEIGHT_MILS_104 = 10395;
 
+    /**
+     * Page height advertised when the document should not be split, in mils.
+     *
+     * A roll has no pages, so anything the source does at a page boundary — repeating
+     * a table header, splitting a row in half, orphaning the totals — is an artifact
+     * of pagination the paper never asked for. One metre of roll is deep enough that
+     * a receipt lands on a single page; PrintUtils trims whatever is left unused.
+     *
+     * Roll length, so it does not vary with the width of the roll.
+     */
+    public static final int MEDIA_HEIGHT_MILS_SINGLE_PAGE = 39370;
+
     /** Advertised page width in mils for a roll size. */
     public static int mediaWidthMilsFor(String printSize) {
         if (mm50.equals(printSize)) {
@@ -57,7 +69,10 @@ public class Constants {
     }
 
     /** Advertised page height in mils for a roll size. */
-    public static int mediaHeightMilsFor(String printSize) {
+    public static int mediaHeightMilsFor(String printSize, boolean singlePage) {
+        if (singlePage) {
+            return MEDIA_HEIGHT_MILS_SINGLE_PAGE;
+        }
         if (mm50.equals(printSize)) {
             return MEDIA_HEIGHT_MILS_58;
         } else if (mm80.equals(printSize)) {
@@ -69,10 +84,12 @@ public class Constants {
     /**
      * Paper fed after the last page, in millimeters, before the cut command.
      *
-     * Enough to push the last line clear of the tear bar on a printer with no cutter,
-     * without spending a hand's length of roll on every receipt.
+     * This is the distance from the print head to the tear bar, which is a property
+     * of the printer rather than of the document. Too little and the last line stops
+     * under the bar and has to be pulled out by hand; too much and every receipt
+     * wastes roll. 20mm clears the bar on the printers this has been tested on.
      */
-    public static final float FEED_AFTER_PRINT_MM = 15f;
+    public static final float FEED_AFTER_PRINT_MM = 20f;
 
     /** Printable width in dots for the currently selected roll size. */
     public static int widthPxFor(String printSize) {

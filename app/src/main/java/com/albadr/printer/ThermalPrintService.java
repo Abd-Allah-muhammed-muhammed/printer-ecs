@@ -6,10 +6,8 @@ import static com.albadr.printer.util.Constants.mm50;
 import static com.albadr.printer.util.Constants.mm80;
 
 
-import android.content.Context;
 import android.graphics.Bitmap;
 
-import android.net.ConnectivityManager;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
@@ -87,11 +85,6 @@ public class ThermalPrintService extends PrintService {
         mHandler.sendMessageDelayed(message, 0);
     }
 
-    private boolean isNetworkConnected() {
-        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-
-        return cm.getActiveNetworkInfo() != null && cm.getActiveNetworkInfo().isConnected();
-    }
 
     private void handleHandleQueuedPrintJob(final PrintJob printJob) {
 
@@ -107,61 +100,65 @@ public class ThermalPrintService extends PrintService {
             return;
         }
 
-        if (!isNetworkConnected()) {
-            // If no network, proceed with printing anyway
-            Log.d(TAG, "No network connection, proceeding with printing");
-//            printNow(printJob);
-            return;
-        }
-
-//        FirebaseRemoteConfig mFirebaseRemoteConfig = FirebaseRemoteConfig.getInstance();
-//        FirebaseRemoteConfigSettings configSettings = new FirebaseRemoteConfigSettings.Builder()
-//                .setMinimumFetchIntervalInSeconds(3600)
-//                .build();
-
-//        mFirebaseRemoteConfig.setConfigSettingsAsync(configSettings);
-//        mFirebaseRemoteConfig.setDefaultsAsync(R.xml.remote_config_defaults);
-
-        // Add timeout for Firebase Remote Config
-        Handler timeoutHandler = new Handler(Looper.getMainLooper());
-        Runnable timeoutRunnable = () -> {
-            Log.w(TAG, "Firebase Remote Config timeout, proceeding with printing");
-//        printNow(printJob);
-        };
-
-        timeoutHandler.postDelayed(timeoutRunnable, 5000); // 5 second timeout
-
-//        mFirebaseRemoteConfig.fetchAndActivate()
-//                .addOnCompleteListener( task -> {
-//                    timeoutHandler.removeCallbacks(timeoutRunnable); // Cancel timeout
-//
-//                    if (task.isSuccessful()) {
-//                        try {
-//                            long version = mFirebaseRemoteConfig.getAll().get("version").asLong();
-//                            int versionCode = BuildConfig.VERSION_CODE;
-//
-//                            Log.d(TAG, "handleHandleQueuedPrintJob: "+versionCode);
-//                            Log.d(TAG, "handleHandleQueuedPrintJob: "+version);
-//                            if (versionCode == version) {
-//                                printJob.cancel();
-//                            }else {
-//                                printNow(printJob);
-//                            }
-//                        } catch (Exception e) {
-//                            Log.e(TAG, "Error parsing version from Remote Config: " + e.getMessage());
-//                            printNow(printJob); // Proceed with printing on error
-//                        }
-//                    } else {
-//                        // Handle Firebase Remote Config failure - proceed with printing
-//                        Log.e(TAG, "Firebase Remote Config fetch failed, proceeding with printing");
-//                        printNow(printJob);
-//                    }
-//                });
-
         printNow(printJob);
     }
 
     private static final String TAG = "ThermalPrintService";
+
+    /** Pause after closing the printer socket, before the next job may open one. */
+    private static final long SOCKET_SETTLE_MS = 400L;
+
+    /**
+     * How many times to try opening the Bluetooth socket before giving up.
+     *
+     * RFCOMM connects fail intermittently — the printer is still tearing down the
+     * last channel, or the SDP lookup races — and surface as
+     * "read failed, socket might closed or timeout". A second attempt a moment later
+     * almost always succeeds, which is why restarting the job by hand used to work.
+     */
+    private static final int CONNECT_ATTEMPTS = 3;
+
+    /** Base gap between connection attempts; grows with each retry. */
+    private static final long CONNECT_RETRY_MS = 700L;
+
+    /** Opens the printer, retrying a transient Bluetooth failure. */
+    private EscPosPrinter connectPrinter(float printerWidthMM, int nbrCharsPerLine) {
+        for (int attempt = 1; attempt <= CONNECT_ATTEMPTS; attempt++) {
+            BluetoothConnection connection = MyApp.get().createBluetoothConnection();
+            if (connection == null) {
+                Log.e(TAG, "connectPrinter: no printer address stored");
+                return null;
+            }
+
+            try {
+                EscPosPrinter printer =
+                        new EscPosPrinter(connection, 203, printerWidthMM, nbrCharsPerLine);
+                Log.d(TAG, "connectPrinter: connected on attempt " + attempt);
+                return printer;
+            } catch (Exception e) {
+                Log.w(TAG, "connectPrinter: attempt " + attempt + " of " + CONNECT_ATTEMPTS
+                        + " failed: " + e.getMessage());
+
+                try {
+                    connection.disconnect();
+                } catch (Exception ignored) {
+                    // Already down; nothing to release.
+                }
+
+                if (attempt < CONNECT_ATTEMPTS) {
+                    try {
+                        Thread.sleep(CONNECT_RETRY_MS * attempt);
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                        return null;
+                    }
+                }
+            }
+        }
+
+        Log.e(TAG, "connectPrinter: giving up after " + CONNECT_ATTEMPTS + " attempts");
+        return null;
+    }
 
     private void printNow(PrintJob printJob) {
         if (printJob.isQueued()) {
@@ -244,6 +241,10 @@ public class ThermalPrintService extends PrintService {
 
         Log.d(TAG, "PDF file created successfully: " + file.getAbsolutePath() + ", size: " + file.length());
 
+        // Declared out here so the finally block can close it down whichever way this
+        // method leaves, including the early returns below.
+        EscPosPrinter printer = null;
+
         try {
             // Check if printer is configured
             if (!MyApp.get().isPrinterConfigured()) {
@@ -251,17 +252,15 @@ public class ThermalPrintService extends PrintService {
                 return;
             }
 
-            BluetoothConnection connection = MyApp.get().createBluetoothConnection();
-            if (connection == null) {
-                printJob.fail("Failed to create Bluetooth connection");
-                return;
-            }
-
             String printSize = sharedPreferencesManager.getPrintSize();
             float printerWidthMM = Constants.widthMmFor(printSize);
             int nbrCharsPerLine = Constants.charsPerLineFor(printSize);
 
-            EscPosPrinter printer = new EscPosPrinter(connection, 203, printerWidthMM, nbrCharsPerLine);
+            printer = connectPrinter(printerWidthMM, nbrCharsPerLine);
+            if (printer == null) {
+                printJob.fail("Unable to connect to the printer");
+                return;
+            }
 
             ArrayList<Bitmap> bitmaps = PrintUtils.pdfToBitmap(file);
 
@@ -336,6 +335,26 @@ public class ThermalPrintService extends PrintService {
             Log.e(LOG_TAG, "Printing error: " + e.getMessage());
             printJob.fail("Printing Error: " + e.getMessage());
         } finally {
+            // Close the Bluetooth socket. Every job opened one and none of them were
+            // ever closed, so the sockets piled up: a printer that accepts only one
+            // RFCOMM connection at a time refused the third job, while a better one
+            // tolerated the leak and hid the bug.
+            if (printer != null) {
+                try {
+                    printer.disconnectPrinter();
+                    Log.d(TAG, "Printer disconnected");
+
+                    // Small printers need a moment to tear the RFCOMM channel down.
+                    // Without it a job queued right behind this one can reach the
+                    // printer before it is ready to accept a new connection.
+                    Thread.sleep(SOCKET_SETTLE_MS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } catch (Exception e) {
+                    Log.w(TAG, "Failed to disconnect printer: " + e.getMessage());
+                }
+            }
+
             // Clean up the temporary file
             try {
                 if (file.exists()) {
@@ -396,7 +415,8 @@ public class ThermalPrintService extends PrintService {
             PrintAttributes.MediaSize mediaSize = new PrintAttributes.MediaSize(
                     label, label,
                     Constants.mediaWidthMilsFor(printSize),
-                    Constants.mediaHeightMilsFor(printSize));
+                    Constants.mediaHeightMilsFor(printSize,
+                            sharedPreferencesManager.isSinglePageEnabled()));
 
             Log.d(TAG, "media size " + label + " -> "
                     + mediaSize.getWidthMils() + "x" + mediaSize.getHeightMils() + " mils");

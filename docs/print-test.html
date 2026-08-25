@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>اختبار طباعة حرارية — 58mm / 80mm</title>
+<style>
+/* =====================================================================
+   صفحة اختبار الطباعة الحرارية
+   ---------------------------------------------------------------------
+   دي كمان مرجع للتنفيذ الصح: التنسيق سائل بالكامل وبيقبل أي عرض صفحة
+   من 181px (رول 58) وطالع. مفيش أي عرض ثابت بالبكسل في أي مكان.
+   ===================================================================== */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #e9eaec;
+  color: #111;
+  font-family: "Segoe UI", "Noto Sans Arabic", "Noto Kufi Arabic", Tahoma, Arial, sans-serif;
+}
+
+/* ---------- شريط التحكم (مش بيتطبع) ---------- */
+
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #16191b;
+  color: #fff;
+  padding: 12px 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  box-shadow: 0 2px 10px rgba(0,0,0,.25);
+}
+.toolbar .label {
+  font-size: 13px;
+  opacity: .7;
+  margin-inline-end: 4px;
+}
+.toolbar button {
+  font: inherit;
+  font-size: 13px;
+  color: #fff;
+  background: #2b3134;
+  border: 1px solid #3d4548;
+  border-radius: 4px;
+  padding: 7px 13px;
+  cursor: pointer;
+}
+.toolbar button:hover { background: #3a4245; }
+.toolbar button[aria-pressed="true"] {
+  background: #0d6e88;
+  border-color: #0d6e88;
+  font-weight: 700;
+}
+.toolbar button:focus-visible { outline: 2px solid #4fbad6; outline-offset: 2px; }
+.toolbar .go {
+  margin-inline-start: auto;
+  background: #c99a06;
+  border-color: #c99a06;
+  color: #16191b;
+  font-weight: 700;
+}
+.toolbar .go:hover { background: #e0ac0a; }
+
+.hint {
+  background: #fff8e1;
+  border-bottom: 1px solid #e6d9a8;
+  color: #5a4a06;
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 10px 14px;
+}
+
+/* ---------- منصة العرض ---------- */
+
+.stage { padding: 22px 12px 60px; display: flex; justify-content: center; }
+
+.receipt {
+  width: 100%;
+  max-width: 181px;          /* يتغيّر من الأزرار — 181px = رول 58 */
+  background: #fff;
+  padding: 2mm;
+  box-shadow: 0 4px 24px rgba(0,0,0,.18);
+  font-size: 8pt;
+  line-height: 1.35;
+}
+
+/* ---------- محتوى الفاتورة ---------- */
+
+.brand {
+  text-align: center;
+  font-size: 13pt;
+  font-weight: 800;
+  letter-spacing: .02em;
+  padding-bottom: 1mm;
+}
+.brand small {
+  display: block;
+  font-size: 7pt;
+  font-weight: 400;
+  letter-spacing: .12em;
+  opacity: .75;
+  margin-top: .5mm;
+}
+
+.doctype {
+  text-align: center;
+  font-size: 10pt;
+  font-weight: 700;
+  border-block: 1px solid #000;
+  padding: 1mm 0;
+  margin: 1.5mm 0;
+}
+
+.fields { width: 100%; border-collapse: collapse; }
+.fields td {
+  padding: .7mm 0;
+  border-bottom: 1px dotted #999;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.fields td:first-child { font-weight: 700; white-space: nowrap; width: 38%; }
+.fields td:last-child { text-align: end; }
+
+.section-label {
+  font-size: 7.5pt;
+  font-weight: 700;
+  letter-spacing: .08em;
+  margin: 2.5mm 0 1mm;
+  padding-bottom: .5mm;
+  border-bottom: 1px solid #000;
+}
+
+/* جدول الأصناف — الجزء اللي بيقع لما التنسيق مش سائل */
+.items {
+  width: 100%;
+  table-layout: fixed;          /* الأهم على الإطلاق */
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.items thead th {
+  background: #000;
+  color: #fff;
+  font-size: 7pt;
+  font-weight: 700;
+  padding: 1mm .6mm;
+  text-align: center;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.items td {
+  padding: 1mm .6mm;
+  border-bottom: 1px solid #ccc;
+  font-size: 7.5pt;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.items th:nth-child(1), .items td:nth-child(1) { width: 40%; text-align: start; }
+.items th:nth-child(2), .items td:nth-child(2) { width: 14%; text-align: center; }
+.items th:nth-child(3), .items td:nth-child(3) { width: 23%; text-align: end; }
+.items th:nth-child(4), .items td:nth-child(4) { width: 23%; text-align: end; }
+
+.totals { width: 100%; border-collapse: collapse; margin-top: 2mm; font-variant-numeric: tabular-nums; }
+.totals td {
+  padding: 1mm .8mm;
+  border: 1px solid #000;
+  overflow-wrap: anywhere;
+}
+.totals td:first-child { font-weight: 700; }
+.totals td:last-child { text-align: end; white-space: nowrap; }
+.totals tr.grand td {
+  background: #000;
+  color: #fff;
+  font-weight: 800;
+  font-size: 9pt;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.foot {
+  text-align: center;
+  margin-top: 3mm;
+  padding-top: 1.5mm;
+  border-top: 1px dashed #000;
+  font-size: 7pt;
+  line-height: 1.5;
+}
+
+/* ---------- بلوك التشخيص ---------- */
+
+.diag { margin-top: 4mm; padding-top: 2mm; border-top: 2px solid #000; }
+
+.diag h2 {
+  font-size: 8.5pt;
+  font-weight: 800;
+  margin: 0 0 1.5mm;
+  text-align: center;
+}
+.diag h3 {
+  font-size: 7.5pt;
+  font-weight: 700;
+  margin: 3mm 0 1mm;
+  padding: .6mm 1mm;
+  background: #000;
+  color: #fff;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* اختبار الحواف: لازم السهمين الاتنين يبانوا كاملين */
+.edge {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1.5px solid #000;
+  font-size: 7pt;
+  font-weight: 700;
+  padding: .8mm .5mm;
+}
+.edge span:nth-child(2) { font-size: 6.5pt; font-weight: 400; text-align: center; }
+
+.ladder div { margin-bottom: .6mm; overflow-wrap: anywhere; }
+.ladder b { font-variant-numeric: tabular-nums; }
+
+.lines { display: flex; flex-direction: column; gap: 1mm; }
+.lines i {
+  display: block;
+  background: #000;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.lines i.w1 { height: .1mm; }
+.lines i.w2 { height: .2mm; }
+.lines i.w3 { height: .35mm; }
+.lines i.w4 { height: .5mm; }
+
+.checks { display: flex; gap: 2mm; align-items: flex-start; }
+.checks figure { margin: 0; text-align: center; flex: 1; }
+.checks svg { width: 100%; height: auto; display: block; border: .5px solid #000; }
+.checks figcaption { font-size: 6pt; margin-top: .5mm; }
+
+.fills { display: flex; gap: 1mm; }
+.fills b {
+  flex: 1;
+  text-align: center;
+  font-size: 6.5pt;
+  padding: 1.5mm 0;
+  border: .5px solid #000;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.fills b.k100 { background: #000; color: #fff; }
+.fills b.k50  { background: #808080; color: #fff; }
+.fills b.k25  { background: #bfbfbf; }
+
+.checklist { font-size: 6.8pt; line-height: 1.6; padding-inline-start: 4mm; margin: 1mm 0 0; }
+.checklist li { margin-bottom: .8mm; overflow-wrap: anywhere; }
+
+.stamp {
+  margin-top: 3mm;
+  border: 1.5px solid #000;
+  padding: 1mm;
+  text-align: center;
+  font-size: 6.5pt;
+  line-height: 1.5;
+}
+.stamp b { font-size: 8pt; }
+
+/* =====================================================================
+   الطباعة
+   ===================================================================== */
+
+@page {
+  margin: 0;      /* الجزء اللي بيشتغل فعلاً — بيلغي هوامش المتصفح */
+  size: auto;     /* المقاس بييجي من خدمة الطباعة في أندرويد */
+}
+
+@media print {
+  html, body {
+    background: #fff;
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .toolbar, .hint { display: none !important; }
+
+  .stage { display: block; padding: 0; }
+
+  .receipt {
+    width: 100%;
+    max-width: none !important;   /* يتجاهل اختيار المعاينة ويملى الصفحة */
+    min-width: 0;
+    margin: 0;
+    padding: 0 1.5mm;
+    box-shadow: none;
+  }
+
+  /* عنوان الجدول يتكرر في أول كل صفحة */
+  .items thead { display: table-header-group; }
+
+  /* مفيش صف يتقص نصين بين صفحتين */
+  .items tr, .totals tr, .fields tr, .stamp, .edge, figure {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <span class="label">عرض المعاينة:</span>
+  <button type="button" data-w="181" aria-pressed="true">58mm — 181px</button>
+  <button type="button" data-w="272" aria-pressed="false">80mm — 272px</button>
+  <button type="button" data-w="363" aria-pressed="false">104mm — 363px</button>
+  <button type="button" data-w="0" aria-pressed="false">بدون تحديد</button>
+  <button type="button" class="go" onclick="window.print()">اطبع</button>
+</div>
+
+<p class="hint">
+  أزرار العرض دي للمعاينة على الشاشة بس — وقت الطباعة الفاتورة بتملى عرض الصفحة اللي
+  خدمة الطباعة بتدّيها مهما كان. لو الفاتورة مقروءة وكاملة على <b>181px</b> على الشاشة،
+  يبقى التنسيق سليم والباقي على التطبيق والطابعة.
+</p>
+
+<div class="stage">
+<div class="receipt" id="receipt">
+
+  <!-- ============ الفاتورة ============ -->
+
+  <div class="brand">
+    مؤسسة اختبار الطباعة
+    <small>TEST RECEIPT — NOT A REAL SALE</small>
+  </div>
+
+  <div class="doctype">فاتورة بيع تجريبية</div>
+
+  <table class="fields">
+    <tbody>
+      <tr><td>رقم الفاتورة:</td><td>TEST-000199</td></tr>
+      <tr><td>التاريخ:</td><td>16-08-2026</td></tr>
+      <tr><td>الوقت:</td><td>03:41:22 PM</td></tr>
+      <tr><td>اسم العميل:</td><td>عميل تجريبي طويل الاسم للاختبار</td></tr>
+      <tr><td>رقم الهاتف:</td><td>01000000000</td></tr>
+      <tr><td>العنوان:</td><td>عنوان تجريبي طويل جدا لاختبار كسر السطر داخل الخلية</td></tr>
+      <tr><td>نوع المعاملة:</td><td>نقدي</td></tr>
+      <tr><td>الرقم الضريبي:</td><td>000-000-000</td></tr>
+    </tbody>
+  </table>
+
+  <div class="section-label">الأصناف</div>
+
+  <table class="items">
+    <thead>
+      <tr>
+        <th>اسم الصنف</th>
+        <th>الكمية</th>
+        <th>السعر</th>
+        <th>الاجمالي</th>
+      </tr>
+    </thead>
+    <tbody id="items"></tbody>
+  </table>
+
+  <table class="totals">
+    <tbody>
+      <tr><td>الاجمالي</td><td id="t-sub">0.0000</td></tr>
+      <tr><td>الخصم</td><td>0.0000</td></tr>
+      <tr><td>القيمة المضافة 14%</td><td id="t-vat">0.0000</td></tr>
+      <tr class="grand"><td>الصافي</td><td id="t-net">0.0000</td></tr>
+      <tr><td>المدفوع</td><td id="t-paid">0.0000</td></tr>
+      <tr><td>عدد الاصناف</td><td id="t-count">0</td></tr>
+      <tr><td>اجمالي الكميات</td><td id="t-qty">0.00</td></tr>
+      <tr><td>الرصيد السابق</td><td>0.0000</td></tr>
+      <tr><td>الرصيد الحالي</td><td>0.0000</td></tr>
+    </tbody>
+  </table>
+
+  <div class="foot">
+    شكرا لتعاملكم معنا<br>
+    دي فاتورة تجريبية لاختبار الطباعة فقط
+  </div>
+
+  <!-- ============ التشخيص ============ -->
+
+  <div class="diag">
+    <h2>■ اختبارات الطباعة ■</h2>
+
+    <h3>1 — الحواف</h3>
+    <div class="edge">
+      <span>◀ يمين</span>
+      <span>لازم السهمين يبانوا</span>
+      <span>شمال ▶</span>
+    </div>
+
+    <h3>2 — مقاسات الخط</h3>
+    <div class="ladder">
+      <div style="font-size:6pt"><b>6pt</b> — الفاتورة والحساب والمخزون ١٢٣٤٥٦٧٨٩٠</div>
+      <div style="font-size:7pt"><b>7pt</b> — الفاتورة والحساب والمخزون ١٢٣٤٥٦٧٨٩٠</div>
+      <div style="font-size:8pt"><b>8pt</b> — الفاتورة والحساب والمخزون ١٢٣٤٥٦٧٨٩٠</div>
+      <div style="font-size:9pt"><b>9pt</b> — الفاتورة والحساب ١٢٣٤٥٦٧٨٩٠</div>
+      <div style="font-size:10pt"><b>10pt</b> — الفاتورة والحساب ١٢٣٤٥</div>
+      <div style="font-size:12pt"><b>12pt</b> — الفاتورة ١٢٣٤٥</div>
+    </div>
+
+    <h3>3 — الخطوط الرفيعة</h3>
+    <div class="lines">
+      <i class="w1"></i><i class="w2"></i><i class="w3"></i><i class="w4"></i>
+    </div>
+
+    <h3>4 — التفاصيل الدقيقة</h3>
+    <div class="checks">
+      <figure>
+        <svg viewBox="0 0 24 24" shape-rendering="crispEdges" aria-label="شبكة كبيرة">
+          <rect width="24" height="24" fill="#fff"/>
+          <g fill="#000"><rect x="0" y="0" width="4" height="4"/><rect x="8" y="0" width="4" height="4"/><rect x="16" y="0" width="4" height="4"/><rect x="4" y="4" width="4" height="4"/><rect x="12" y="4" width="4" height="4"/><rect x="20" y="4" width="4" height="4"/><rect x="0" y="8" width="4" height="4"/><rect x="8" y="8" width="4" height="4"/><rect x="16" y="8" width="4" height="4"/><rect x="4" y="12" width="4" height="4"/><rect x="12" y="12" width="4" height="4"/><rect x="20" y="12" width="4" height="4"/><rect x="0" y="16" width="4" height="4"/><rect x="8" y="16" width="4" height="4"/><rect x="16" y="16" width="4" height="4"/><rect x="4" y="20" width="4" height="4"/><rect x="12" y="20" width="4" height="4"/><rect x="20" y="20" width="4" height="4"/></g>
+        </svg>
+        <figcaption>خشن</figcaption>
+      </figure>
+      <figure>
+        <svg viewBox="0 0 24 24" shape-rendering="crispEdges" aria-label="شبكة متوسطة">
+          <rect width="24" height="24" fill="#fff"/>
+          <g fill="#000" id="mid"></g>
+        </svg>
+        <figcaption>متوسط</figcaption>
+      </figure>
+      <figure>
+        <svg viewBox="0 0 24 24" shape-rendering="crispEdges" aria-label="شبكة دقيقة">
+          <rect width="24" height="24" fill="#fff"/>
+          <g fill="#000" id="fine"></g>
+        </svg>
+        <figcaption>دقيق</figcaption>
+      </figure>
+    </div>
+
+    <h3>5 — التعبئة</h3>
+    <div class="fills">
+      <b class="k100">100%</b>
+      <b class="k50">50%</b>
+      <b class="k25">25%</b>
+    </div>
+
+    <h3>6 — قائمة الفحص</h3>
+    <ol class="checklist">
+      <li>السهمين ◀ ▶ باينين كاملين ومفيش حاجة مقصوصة من الجنبين.</li>
+      <li>الفاتورة بتملى عرض الورق كله — مفيش فراغ أبيض كبير على الجنبين.</li>
+      <li>أعمدة الجدول الأربعة كاملة، والأرقام <b>20.0000</b> مش <b>0000</b>.</li>
+      <li>عنوان الجدول الأسود اتطبع أسود فعلاً.</li>
+      <li>عنوان الجدول اتكرر في أول الصفحة التانية.</li>
+      <li>مفيش صف اتقص نصين بين الصفحتين.</li>
+      <li>أصغر مقاس خط مقروء: ______ pt.</li>
+      <li>الشبكة الدقيقة لسه مربعاتها مميزة (لو أيوه، الـ QR هيتقري).</li>
+    </ol>
+
+    <div class="stamp">
+      <b>نهاية الاختبار</b><br>
+      لو كل البنود فوق ✔ يبقى التطبيق والطابعة سليمين
+    </div>
+  </div>
+
+</div>
+</div>
+
+<script>
+// ---- أصناف كتير عشان الفاتورة تعدي على أكتر من صفحة ----
+var NAMES = [
+  "تست قوائم اسعار", "لوحة اسماك مجمدة", "زيت طعام ٢ لتر", "سكر ناعم كيلو",
+  "ارز مصري فاخر ٥ كيلو", "شاي اسود ١٠٠ فتلة", "مكرونة اسباجتي", "صلصة طماطم",
+  "جبنة بيضاء كيلو", "لبن كامل الدسم لتر", "بيض بلدي طبق", "دقيق فاخر كيلو",
+  "عدس اصفر نص كيلو", "فول مدمس معلب", "تونة قطع كبيرة", "زيتون اخضر برطمان",
+  "عسل نحل طبيعي", "مربى فراولة", "بسكويت شاي", "شيبسي عائلي",
+  "منظف اطباق ٧٥٠ مل", "مسحوق غسيل ٣ كيلو", "معجون اسنان", "شامبو ٤٠٠ مل",
+  "مناديل ورقية علبة", "فوط مطبخ لفة", "اكياس قمامة رول", "بطاريات قلم ٤ حبة"
+];
+
+var tbody = document.getElementById("items");
+var sub = 0, qty = 0, rows = "";
+
+for (var i = 0; i < NAMES.length; i++) {
+  var q = (i % 4) + 1;
+  var price = 12.5 + (i * 7.25);
+  var total = q * price;
+  sub += total;
+  qty += q;
+  rows += "<tr><td>" + NAMES[i] + "</td><td>" + q.toFixed(2) + "</td><td>"
+        + price.toFixed(4) + "</td><td>" + total.toFixed(4) + "</td></tr>";
+}
+tbody.innerHTML = rows;
+
+var vat = sub * 0.14, net = sub + vat;
+function put(id, v) { document.getElementById(id).textContent = v; }
+put("t-sub",   sub.toFixed(4));
+put("t-vat",   vat.toFixed(4));
+put("t-net",   net.toFixed(4));
+put("t-paid",  net.toFixed(4));
+put("t-count", String(NAMES.length));
+put("t-qty",   qty.toFixed(2));
+
+// ---- شبكات التفاصيل الدقيقة ----
+function buildGrid(id, cell) {
+  var n = 24 / cell, out = "";
+  for (var r = 0; r < n; r++) {
+    for (var c = 0; c < n; c++) {
+      if ((r + c) % 2 === 0) {
+        out += '<rect x="' + (c * cell) + '" y="' + (r * cell)
+             + '" width="' + cell + '" height="' + cell + '"/>';
+      }
+    }
+  }
+  document.getElementById(id).innerHTML = out;
+}
+buildGrid("mid", 2);
+buildGrid("fine", 1);
+
+// ---- أزرار عرض المعاينة ----
+var receipt = document.getElementById("receipt");
+var buttons = document.querySelectorAll(".toolbar button[data-w]");
+
+for (var b = 0; b < buttons.length; b++) {
+  buttons[b].addEventListener("click", function () {
+    for (var k = 0; k < buttons.length; k++) {
+      buttons[k].setAttribute("aria-pressed", "false");
+    }
+    this.setAttribute("aria-pressed", "true");
+    var w = parseInt(this.getAttribute("data-w"), 10);
+    receipt.style.maxWidth = w ? (w + "px") : "none";
+  });
+}
+</script>
+
+</body>
+</html>

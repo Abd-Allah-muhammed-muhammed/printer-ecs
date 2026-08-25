@@ -79,6 +79,8 @@
     <string name="pref_title_vibrate">Vibrate</string>
     <string name="title_activity_add_printer">AddPrinterActivity</string>
     <string name="printer_size">مقاس الطابعة</string>
+    <string name="single_page_title">فاتورة في صفحة واحدة</string>
+    <string name="single_page_summary">الرول ورق متصل مفيهوش صفحات. شغّله عشان الفاتورة تتطبع شريط واحد: عنوان الجدول مايتكررش، ومفيش صف بيتقص نصين.</string>
 
 
 

@@ -13,6 +13,7 @@ public class SharedPreferencesManager {
     private static final String KEY_PRINT_NAME = "KEY_PRINT_NAME";
     private static final String NUMBER_PRINTING = "NUMBER_PRINTING";
     private static final String KEY_PRINT_ADDRESS = "KEY_PRINT_Address";
+    private static final String KEY_SINGLE_PAGE = "KEY_SINGLE_PAGE";
 
     private static SharedPreferencesManager instance;
 
@@ -57,6 +58,20 @@ public class SharedPreferencesManager {
 
     public String getPrintSize() {
         return sharedPreferences.getString(KEY_PRINT_SIZE, mm50);
+    }
+
+    /**
+     * Whether the document should be printed as one continuous strip instead of
+     * being split into pages. Off by default: it changes the page size handed to the
+     * source, so it is opted into rather than assumed.
+     */
+    public boolean isSinglePageEnabled() {
+        return sharedPreferences.getBoolean(KEY_SINGLE_PAGE, false);
+    }
+
+    public void saveSinglePageEnabled(boolean enabled) {
+        editor.putBoolean(KEY_SINGLE_PAGE, enabled);
+        editor.apply();
     }
 
 

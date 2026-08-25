@@ -22,6 +22,12 @@ public class PrintUtils {
      */
     private static final int MEASURE_WIDTH_PX = 1200;
 
+    /**
+     * Ceiling on the measuring bitmap, in pixels. Keeps one page under about 16MB
+     * however deep the page is.
+     */
+    private static final long MAX_MEASURE_PIXELS = 4_000_000L;
+
     /** Pixels with all channels above this are treated as blank paper. */
     private static final int WHITE_THRESHOLD = 250;
 
@@ -37,6 +43,20 @@ public class PrintUtils {
 
     /** Blank rows kept below the last printed row, in print head dots. */
     private static final int BOTTOM_PADDING_PX = 12;
+
+    /**
+     * Grey level below which a pixel counts as ink when looking for the end of the
+     * document. Stricter than {@link #WHITE_THRESHOLD} so a faint background wash or
+     * a near-white hairline does not read as content and defeat the trim.
+     */
+    private static final int TRIM_INK_THRESHOLD = 200;
+
+    /**
+     * Ink pixels a row needs before it counts as the last printed row. A stray speck
+     * or a page-tall frame rule contributes one or two pixels per row and would
+     * otherwise anchor the trim to the bottom of the page, printing the blank tail.
+     */
+    private static final int MIN_INK_PIXELS_PER_ROW = 3;
 
     /**
      * Grey level at or below which a pixel becomes a fired dot. A thermal head has
@@ -86,9 +106,16 @@ public class PrintUtils {
 
                 bottom[i] = lastRow < 0 ? -1f : (float) (lastRow + 1) / page.getHeight();
 
+                Log.d(TAG, "measure: page " + (i + 1) + "/" + pageCount
+                        + " is " + page.getWidth() + "x" + page.getHeight()
+                        + ", last printed row " + lastRow
+                        + " (" + Math.round(bottom[i] * 100) + "% down the page)");
+
                 if (columns[1] >= 0) {
-                    left = Math.min(left, (float) columns[0] / measureWidth);
-                    right = Math.max(right, (float) (columns[1] + 1) / measureWidth);
+                    // Against the bitmap's own width, not the requested one: a deep
+                    // page gets measured smaller to stay inside the pixel cap.
+                    left = Math.min(left, (float) columns[0] / page.getWidth());
+                    right = Math.max(right, (float) (columns[1] + 1) / page.getWidth());
                 }
 
                 page.recycle();
@@ -142,6 +169,18 @@ public class PrintUtils {
             // Passing a bitmap with a different ratio than the page makes PdfRenderer
             // scale x and y independently, which stretches the receipt vertically.
             int height = Math.max(1, Math.round((float) width * page.getHeight() / page.getWidth()));
+
+            // An unsplit page is a metre of roll deep, which at the full measuring
+            // width would be tens of millions of pixels. Locating a margin does not
+            // need that resolution, so shrink both sides to stay inside the cap.
+            long pixels = (long) width * height;
+            if (pixels > MAX_MEASURE_PIXELS) {
+                double factor = Math.sqrt((double) MAX_MEASURE_PIXELS / pixels);
+                width = Math.max(1, (int) (width * factor));
+                height = Math.max(1, (int) (height * factor));
+                Log.d(TAG, "measurePage: page " + (index + 1) + " capped to "
+                        + width + "x" + height);
+            }
 
             Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
 
@@ -281,7 +320,7 @@ public class PrintUtils {
         return new int[]{left, right};
     }
 
-    /** Index of the last row containing anything printed, or -1 for a blank page. */
+    /** Index of the last row containing printed content, or -1 for a blank page. */
     private static int lastContentRow(Bitmap bitmap) {
         int width = bitmap.getWidth();
         int height = bitmap.getHeight();
@@ -290,14 +329,25 @@ public class PrintUtils {
         for (int y = height - 1; y >= 0; y--) {
             bitmap.getPixels(rowPixels, 0, width, 0, y, width, 1);
 
+            int ink = 0;
             for (int x = 0; x < width; x++) {
-                if (isContent(rowPixels[x])) {
+                if (isInk(rowPixels[x]) && ++ink >= MIN_INK_PIXELS_PER_ROW) {
                     return y;
                 }
             }
         }
 
         return -1;
+    }
+
+    private static boolean isInk(int pixel) {
+        if (Color.alpha(pixel) <= ALPHA_THRESHOLD) {
+            return false;
+        }
+        int luminance = (Color.red(pixel) * 299
+                + Color.green(pixel) * 587
+                + Color.blue(pixel) * 114) / 1000;
+        return luminance < TRIM_INK_THRESHOLD;
     }
 
     private static boolean isContent(int pixel) {
