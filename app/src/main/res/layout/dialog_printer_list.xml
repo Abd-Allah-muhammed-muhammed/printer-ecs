@@ -36,6 +36,20 @@
         android:clipToPadding="false"
         android:paddingBottom="8dp" />
 
+    <!-- Shown instead of the list when nothing was found -->
+    <TextView
+        android:id="@+id/tv_empty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:lineSpacingExtra="4dp"
+        android:paddingTop="24dp"
+        android:paddingBottom="24dp"
+        android:text="لم يتم العثور على أي طابعة.\nلو الطابعة خارجية، اقترن بها من إعدادات البلوتوث الأول."
+        android:textColor="@color/text_secondary"
+        android:textSize="14sp"
+        android:visibility="gone" />
+
     <!-- Disconnect Button -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btn_disconnect"

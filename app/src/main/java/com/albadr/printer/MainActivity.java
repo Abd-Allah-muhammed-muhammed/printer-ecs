@@ -35,6 +35,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.albadr.printer.util.Constants;
+import com.albadr.printer.util.InternalPrinter;
 import com.albadr.printer.util.PrintUtils;
 import com.albadr.printer.util.SharedPreferencesManager;
 import com.albadr.printer.util.UIUtils;
@@ -59,14 +60,10 @@ import java.util.Set;
 public class MainActivity extends AppCompatActivity {
     private final String TAG = "MainActivity";
 
-    private static String[] PERMISSIONS_STORAGE = {
-            android.Manifest.permission.READ_EXTERNAL_STORAGE,
-            android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
+    private static final String[] PERMISSIONS_BLUETOOTH = {
             android.Manifest.permission.BLUETOOTH_SCAN,
             android.Manifest.permission.BLUETOOTH_CONNECT,
-            android.Manifest.permission.READ_MEDIA_IMAGES,
-            android.Manifest.permission.BLUETOOTH_ADVERTISE,
-            android.Manifest.permission.BLUETOOTH_PRIVILEGED
+            android.Manifest.permission.BLUETOOTH_ADVERTISE
     };
     SharedPreferencesManager sharedPreferencesManager = MyApp.getSharedPreferencesManager();
 
@@ -89,56 +86,23 @@ public class MainActivity extends AppCompatActivity {
     private BottomSheetDialog printerDialog;
 
     private void checkPermissions() {
-        int permission1 = ActivityCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE);
-
-
-        int permission3 = 0;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permission3 = ActivityCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES);
+        // Runtime Bluetooth permissions only exist on Android 12 (API 31) and above.
+        // On older devices BLUETOOTH / BLUETOOTH_ADMIN are install-time permissions.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            return;
         }
 
-
-        int permission2 = 0;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            permission2 = ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN);
+        ArrayList<String> missing = new ArrayList<>();
+        for (String permission : PERMISSIONS_BLUETOOTH) {
+            if (ActivityCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                missing.add(permission);
+            }
         }
 
-        int permission4 = 0;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-
-            Log.d(TAG, "checkPermissions: ");
-            permission4 = ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT);
+        if (!missing.isEmpty()) {
+            Log.d(TAG, "checkPermissions: requesting " + missing);
+            ActivityCompat.requestPermissions(this, missing.toArray(new String[0]), 1);
         }
-
-
-        if (permission1 != PackageManager.PERMISSION_GRANTED) {
-            // We don't have permission so prompt the user
-            ActivityCompat.requestPermissions(
-                    this,
-                    PERMISSIONS_STORAGE,
-                    1
-            );
-        } else if (permission2 != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(
-                    this,
-                    PERMISSIONS_STORAGE,
-                    1
-            );
-        } else if (permission3 != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(
-                    this,
-                    PERMISSIONS_STORAGE,
-                    1
-            );
-        } else if (permission4 != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(
-                    this,
-                    new String[]{Manifest.permission.BLUETOOTH_CONNECT},
-                    1
-            );
-        }
-
-
     }
 
     @Override
@@ -164,24 +128,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         // Printer card click -> show bottom sheet
-        findViewById(R.id.card_printer).setOnClickListener(v -> {
-            BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-            if (mBluetoothAdapter == null) {
-                return;
-            } else if (!mBluetoothAdapter.isEnabled()) {
-                Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.BLUETOOTH_CONNECT}, 100);
-                    }
-                    return;
-                }
-                startActivityForResult(enableIntent, 505);
-            } else {
-                loadPairedDevices();
-                showPrinterBottomSheet();
-            }
-        });
+        findViewById(R.id.card_printer).setOnClickListener(v -> openPrinterPicker());
 
         findViewById(R.id.tv_privacy_policy).setOnClickListener(v ->
                 startActivity(new Intent(MainActivity.this, PrivacyPolicyActivity.class)));
@@ -207,22 +154,7 @@ public class MainActivity extends AppCompatActivity {
             if (isConnected || MyApp.get().isPrinterConfigured()) {
                 print();
             } else {
-                BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-                if (mBluetoothAdapter == null) {
-                    // Device does not support Bluetooth
-                } else if (!mBluetoothAdapter.isEnabled()) {
-                    Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-                    if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                            ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.BLUETOOTH_CONNECT}, 100);
-                        }
-                        return;
-                    }
-                    startActivityForResult(enableIntent, 505);
-                } else {
-                    loadPairedDevices();
-                    showPrinterBottomSheet();
-                }
+                openPrinterPicker();
             }
         });
 
@@ -231,6 +163,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private static final int REQUEST_CODE_BLUETOOTH_CONNECT = 100;
+    private static final int REQUEST_CODE_ENABLE_BT = 505;
 
     private void loadPairedDevices() {
         pairedDeviceList.clear();
@@ -250,6 +183,58 @@ public class MainActivity extends AppCompatActivity {
         if (pairedDevices != null) {
             pairedDeviceList.addAll(pairedDevices);
         }
+
+        addInternalPrinter();
+    }
+
+    /**
+     * Puts the printer built into the handheld at the top of the list.
+     *
+     * It is wired into the device rather than paired with it, so getPairedDev() cannot
+     * see it and the list came up empty on exactly the machines that always have a
+     * printer in them.
+     */
+    private void addInternalPrinter() {
+        BluetoothDevice internal = InternalPrinter.find();
+        if (internal == null) {
+            return;
+        }
+
+        for (int i = 0; i < pairedDeviceList.size(); i++) {
+            if (InternalPrinter.isInternal(pairedDeviceList.get(i).getAddress())) {
+                // Some builds do bond it. Keep that instance, just move it to the top.
+                pairedDeviceList.add(0, pairedDeviceList.remove(i));
+                return;
+            }
+        }
+
+        pairedDeviceList.add(0, internal);
+        Log.d(TAG, "addInternalPrinter: built-in printer added at " + InternalPrinter.MAC);
+    }
+
+    /** Opens the printer picker, turning Bluetooth on first if it is off. */
+    private void openPrinterPicker() {
+        BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
+        if (adapter == null) {
+            // This used to return in silence, which left the card looking dead.
+            UIUtils.toast("البلوتوث غير مدعوم على هذا الجهاز");
+            return;
+        }
+
+        if (!adapter.isEnabled()) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                    && ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT)
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.BLUETOOTH_CONNECT}, REQUEST_CODE_BLUETOOTH_CONNECT);
+                return;
+            }
+            startActivityForResult(new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE), REQUEST_CODE_ENABLE_BT);
+            return;
+        }
+
+        loadPairedDevices();
+        showPrinterBottomSheet();
     }
 
     @SuppressLint("SetTextI18n")
@@ -261,6 +246,11 @@ public class MainActivity extends AppCompatActivity {
         RecyclerView rv = sheetView.findViewById(R.id.rv_printers);
         rv.setLayoutManager(new LinearLayoutManager(this));
         rv.setAdapter(new PrinterAdapter());
+
+        // An empty sheet says nothing about why it is empty; this does.
+        boolean empty = pairedDeviceList.isEmpty();
+        rv.setVisibility(empty ? View.GONE : View.VISIBLE);
+        sheetView.findViewById(R.id.tv_empty).setVisibility(empty ? View.VISIBLE : View.GONE);
 
         sheetView.findViewById(R.id.btn_disconnect).setOnClickListener(v -> {
             if (btService != null) {
@@ -301,24 +291,18 @@ public class MainActivity extends AppCompatActivity {
             if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
                 return;
             }
-            String name = device.getName();
             String address = device.getAddress();
-            holder.tvName.setText(name != null ? name : "Unknown");
-            holder.tvAddress.setText(address);
+            String name = displayName(device);
+            holder.tvName.setText(name);
+            // The built-in printer has an address, but it means nothing to whoever is
+            // holding the device; say where it is instead.
+            holder.tvAddress.setText(InternalPrinter.isInternal(address) ? "مدمجة بالجهاز" : address);
             holder.itemView.setOnClickListener(v -> {
                 con_dev = device;
-                connectBt(con_dev.getAddress());
-                sharedPreferencesManager.savePrintAddress(con_dev.getAddress());
-                if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.BLUETOOTH_CONNECT}, 100);
-                    } else {
-                        ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.BLUETOOTH}, 100);
-                    }
-                    return;
-                }
-                sharedPreferencesManager.savePrintName(con_dev.getName());
-                imageView.setText(con_dev.getName());
+                connectBt(address);
+                sharedPreferencesManager.savePrintAddress(address);
+                sharedPreferencesManager.savePrintName(name);
+                imageView.setText(name);
                 updateStatusDot(true);
                 if (printerDialog != null) printerDialog.dismiss();
             });
@@ -336,6 +320,29 @@ public class MainActivity extends AppCompatActivity {
                 tvName = itemView.findViewById(R.id.tv_printer_name);
                 tvAddress = itemView.findViewById(R.id.tv_printer_address);
             }
+        }
+    }
+
+    /**
+     * A name to show for a device. An unbonded one reports none of its own, and the
+     * built-in printer is never bonded, so it would otherwise read as "Unknown".
+     */
+    @SuppressLint("MissingPermission")
+    private String displayName(BluetoothDevice device) {
+        if (InternalPrinter.isInternal(device.getAddress())) {
+            return InternalPrinter.LABEL;
+        }
+        String name = device.getName();
+        return (name == null || name.isEmpty()) ? "Unknown" : name;
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        // Nothing handled this before, so turning Bluetooth on at the prompt dropped the
+        // user back on the main screen with no picker and no explanation.
+        if (requestCode == REQUEST_CODE_ENABLE_BT && resultCode == RESULT_OK) {
+            openPrinterPicker();
         }
     }
 

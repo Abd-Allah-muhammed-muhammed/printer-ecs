@@ -14,9 +14,9 @@ android {
     defaultConfig {
         applicationId = "com.albadr.printer"
         minSdk = 24
-        targetSdk = 35
-        versionCode = 20
-        versionName = "20.0.0"
+        targetSdk = 36
+        versionCode = 21
+        versionName = "21.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
