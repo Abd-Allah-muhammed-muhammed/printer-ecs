@@ -38,6 +38,28 @@ public final class InternalPrinter {
     }
 
     /**
+     * Whether {@code device} is the built-in printer.
+     *
+     * The address is the reliable half of this; the name covers a ROM that wires the
+     * printer up at some other address, which is the case the fixed address alone
+     * would miss.
+     */
+    @SuppressLint("MissingPermission")
+    public static boolean isInternal(BluetoothDevice device) {
+        if (device == null) {
+            return false;
+        }
+        if (isInternal(device.getAddress())) {
+            return true;
+        }
+        try {
+            return BT_NAME.equalsIgnoreCase(device.getName());
+        } catch (SecurityException e) {
+            return false;
+        }
+    }
+
+    /**
      * The built-in printer as a Bluetooth device, or null when this handset has none.
      *
      * <p>The caller must hold BLUETOOTH_CONNECT on Android 12 and above.

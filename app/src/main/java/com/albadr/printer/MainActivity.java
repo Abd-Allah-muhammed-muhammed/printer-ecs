@@ -165,10 +165,25 @@ public class MainActivity extends AppCompatActivity {
     private static final int REQUEST_CODE_BLUETOOTH_CONNECT = 100;
     private static final int REQUEST_CODE_ENABLE_BT = 505;
 
+    /**
+     * Whether this app may talk to a Bluetooth device right now.
+     *
+     * BLUETOOTH_CONNECT became a runtime permission in Android 12. Older platforms do
+     * not define it at all, and a permission the system has never heard of is never
+     * granted, so checkSelfPermission() reports it denied on every one of them. Asking
+     * for it unguarded is therefore not a safety check but a guarantee of failure on
+     * older devices — which is what emptied the printer list on the Android 7
+     * handhelds while leaving it working on modern phones.
+     */
+    private boolean canUseBluetooth() {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.S
+                || ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT)
+                == PackageManager.PERMISSION_GRANTED;
+    }
+
     private void loadPairedDevices() {
         pairedDeviceList.clear();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+        if (!canUseBluetooth()) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.BLUETOOTH_CONNECT}, REQUEST_CODE_BLUETOOTH_CONNECT);
             return;
         }
@@ -195,21 +210,23 @@ public class MainActivity extends AppCompatActivity {
      * printer in them.
      */
     private void addInternalPrinter() {
-        BluetoothDevice internal = InternalPrinter.find();
-        if (internal == null) {
-            return;
-        }
-
         for (int i = 0; i < pairedDeviceList.size(); i++) {
-            if (InternalPrinter.isInternal(pairedDeviceList.get(i).getAddress())) {
-                // Some builds do bond it. Keep that instance, just move it to the top.
+            if (InternalPrinter.isInternal(pairedDeviceList.get(i))) {
+                // This ROM does bond it — the Sunmi V2 is one that does. Keep the
+                // bonded device, whatever its address, and just move it to the top.
                 pairedDeviceList.add(0, pairedDeviceList.remove(i));
+                Log.d(TAG, "addInternalPrinter: bonded built-in printer moved to the top");
                 return;
             }
         }
 
-        pairedDeviceList.add(0, internal);
-        Log.d(TAG, "addInternalPrinter: built-in printer added at " + InternalPrinter.MAC);
+        // Not bonded: fall back to the address Sunmi wires it to. Only reached on a
+        // ROM that hides it from the bonded list, so it cannot duplicate the row above.
+        BluetoothDevice internal = InternalPrinter.find();
+        if (internal != null) {
+            pairedDeviceList.add(0, internal);
+            Log.d(TAG, "addInternalPrinter: built-in printer added at " + InternalPrinter.MAC);
+        }
     }
 
     /** Opens the printer picker, turning Bluetooth on first if it is off. */
@@ -222,9 +239,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         if (!adapter.isEnabled()) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-                    && ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT)
-                    != PackageManager.PERMISSION_GRANTED) {
+            if (!canUseBluetooth()) {
                 ActivityCompat.requestPermissions(this,
                         new String[]{Manifest.permission.BLUETOOTH_CONNECT}, REQUEST_CODE_BLUETOOTH_CONNECT);
                 return;
@@ -288,15 +303,16 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onBindViewHolder(@NonNull VH holder, int position) {
             BluetoothDevice device = pairedDeviceList.get(position);
-            if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            if (!canUseBluetooth()) {
                 return;
             }
             String address = device.getAddress();
-            String name = displayName(device);
+            boolean internal = InternalPrinter.isInternal(device);
+            String name = internal ? InternalPrinter.LABEL : displayName(device);
             holder.tvName.setText(name);
             // The built-in printer has an address, but it means nothing to whoever is
             // holding the device; say where it is instead.
-            holder.tvAddress.setText(InternalPrinter.isInternal(address) ? "مدمجة بالجهاز" : address);
+            holder.tvAddress.setText(internal ? "مدمجة بالجهاز" : address);
             holder.itemView.setOnClickListener(v -> {
                 con_dev = device;
                 connectBt(address);
@@ -329,9 +345,6 @@ public class MainActivity extends AppCompatActivity {
      */
     @SuppressLint("MissingPermission")
     private String displayName(BluetoothDevice device) {
-        if (InternalPrinter.isInternal(device.getAddress())) {
-            return InternalPrinter.LABEL;
-        }
         String name = device.getName();
         return (name == null || name.isEmpty()) ? "Unknown" : name;
     }
